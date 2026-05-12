@@ -1,0 +1,110 @@
+@model ScarFood.Models.Usuario
+
+@{
+    ViewData["Title"] = "Meu Perfil";
+}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-0 shadow-sm" style="border-radius: 15px;">
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <div class="bg-light d-inline-block p-3 rounded-circle mb-2">
+                            <i class="fas fa-user-circle fa-4x text-danger"></i>
+                        </div>
+                        <h3 class="fw-bold">Meus Dados</h3>
+                        <p class="text-muted small">E-mail: <span class="fw-bold">@Model.Email</span></p>
+                    </div>
+
+                    @if (ViewBag.Mensagem != null)
+                    {
+                        <div class="alert alert-success border-0 small text-center">@ViewBag.Mensagem</div>
+                    }
+
+                    <form asp-action="AtualizarPerfil" method="post">
+                        <input type="hidden" asp-for="Id" />
+                        <input type="hidden" asp-for="Email" />
+
+                        <div class="row">
+                            <h6 class="fw-bold text-danger mb-3"><i class="fas fa-id-card me-2"></i>Informações Pessoais</h6>
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label fw-bold small text-muted">NOME COMPLETO</label>
+                                <input asp-for="Nome" class="form-control border-0 bg-light" required />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold small text-muted">CPF</label>
+                                <input asp-for="Cpf" class="form-control border-0 bg-light" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold small text-muted">TELEFONE</label>
+                                <input asp-for="Telefone" class="form-control border-0 bg-light" />
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
+                            <h6 class="fw-bold text-danger mb-3"><i class="fas fa-map-marker-alt me-2"></i>Endereço de Entrega</h6>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold small text-muted">CEP</label>
+                                <input asp-for="Cep" class="form-control border-0 bg-light" onblur="buscarCep(this.value)" />
+                            </div>
+                            <div class="col-md-8 mb-3">
+                                <label class="form-label fw-bold small text-muted">LOGRADOURO</label>
+                                <input asp-for="Logradouro" id="logradouro" class="form-control border-0 bg-light" />
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold small text-muted">NÚMERO</label>
+                                <input asp-for="Numero" class="form-control border-0 bg-light" />
+                            </div>
+                            <div class="col-md-8 mb-3">
+                                <label class="form-label fw-bold small text-muted">COMPLEMENTO</label>
+                                <input asp-for="Complemento" class="form-control border-0 bg-light" />
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
+                            <h6 class="fw-bold text-danger mb-3"><i class="fas fa-lock me-2"></i>Segurança e Senha</h6>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold small text-muted">SENHA ATUAL</label>
+                                <input asp-for="SenhaAtual" type="password" class="form-control border-0 bg-light" placeholder="Confirme sua senha atual" />
+                                <span asp-validation-for="SenhaAtual" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6 mb-4">
+                                <label class="form-label fw-bold small text-muted">NOVA SENHA</label>
+                                <input asp-for="Senha" type="password" class="form-control border-0 bg-light" placeholder="Digite a nova senha" />
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-danger fw-bold py-3" style="background-color: #EA1D2C;">
+                                SALVAR ALTERAÇÕES
+                            </button>
+                            <a asp-controller="Autenticacao" asp-action="Sair" class="btn btn-outline-dark fw-bold py-2 mt-2">
+                                ENCERRAR SESSÃO
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @* Adicionado scripts de validação para evitar erro de typeToken *@
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.5/jquery.validate.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validation-unobtrusive/3.2.13/jquery.validate.unobtrusive.min.js"></script>
+    
+    <script>
+        function buscarCep(valor) {
+            let cep = valor.replace(/\D/g, '');
+            if (cep != "") {
+                $.getJSON("https://viacep.com.br/ws/"+ cep +"/json/", function(dados) {
+                    if (!("erro" in dados)) {
+                        document.getElementById('logradouro').value = dados.logradouro + ", " + dados.bairro + " - " + dados.localidade;
+                    }
+                });
+            }
+        }
+    </script>
+}

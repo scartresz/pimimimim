@@ -1,0 +1,28 @@
+[
+  {
+    "Id": 1,
+    "Nome": "klaus ",
+    "Email": "klaus@gmail.com",
+    "Senha": "123456",
+    "SenhaAtual": null,
+    "Cpf": null,
+    "Telefone": null,
+    "Cep": null,
+    "Logradouro": null,
+    "Numero": null,
+    "Complemento": null
+  },
+  {
+    "Id": 2,
+    "Nome": "adm",
+    "Email": "admin@scarfood.com",
+    "Senha": "123456",
+    "SenhaAtual": null,
+    "Cpf": null,
+    "Telefone": null,
+    "Cep": null,
+    "Logradouro": null,
+    "Numero": null,
+    "Complemento": null
+  }
+]

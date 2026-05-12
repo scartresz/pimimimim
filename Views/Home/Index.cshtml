@@ -1,0 +1,570 @@
+﻿@model List<ScarFood.Models.Produto>
+@using System.IO
+@using System.Text.Json
+
+@{
+    ViewData["Title"] = "Cardápio";
+
+    // 1. Pega os nomes exatos das categorias que os produtos têm (para nada sumir)
+    var categoriasDosProdutos = Model
+        .Where(p => !string.IsNullOrWhiteSpace(p.Categoria))
+        .Select(p => p.Categoria.Trim())
+        .Distinct()
+        .ToList();
+
+    // 2. Lê a ordem direto do arquivo (à prova de falhas)
+    var categoriasFinais = new List<string>();
+    var caminhoCats = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "categorias.json");
+
+    if (System.IO.File.Exists(caminhoCats))
+    {
+        try 
+        {
+            var jsonCats = System.IO.File.ReadAllText(caminhoCats);
+            var configAdmin = System.Text.Json.JsonSerializer.Deserialize<List<ScarFood.Models.CategoriaItem>>(jsonCats, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            
+            if (configAdmin != null)
+            {
+                var ordemAdmin = configAdmin.OrderBy(c => c.Ordem).Select(c => c.Nome.Trim()).ToList();
+                
+                foreach(var nomeAdmin in ordemAdmin)
+                {
+                    var matchProduto = categoriasDosProdutos.FirstOrDefault(c => c.Equals(nomeAdmin, System.StringComparison.OrdinalIgnoreCase));
+                    if (matchProduto != null)
+                    {
+                        categoriasFinais.Add(matchProduto);
+                        categoriasDosProdutos.Remove(matchProduto); 
+                    }
+                }
+            }
+        } 
+        catch { }
+    }
+
+    // 3. Joga pro final qualquer categoria que tenha ficado de fora da organização do Admin
+    categoriasFinais.AddRange(categoriasDosProdutos);
+}
+
+<style>
+
+    .category-section { padding-top: 100px; margin-top: -100px; }
+    .product-card { transition: transform 0.2s; cursor: pointer; border-radius: 15px; overflow: hidden; border: none; }
+    .product-card:hover { transform: scale(1.02); box-shadow: 0 10px 20px rgba(234, 29, 44, 0.1) !important; }
+    .categories-bar { padding: 5px 0; margin-bottom: 20px; }
+    .ingredient-control { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+    .btn-outline-danger { border-color: #EA1D2C; color: #EA1D2C; }
+    .btn-outline-danger:hover { background-color: #EA1D2C; border-color: #EA1D2C; color: white; }
+    .modal-header-scar { background-color: #EA1D2C; color: white; border-radius: 20px 20px 0 0; }
+    .text-scar { color: #EA1D2C; }
+    .bg-scar-light { background-color: #fff5f5; }
+
+    #carrinhoLateral {
+        position: fixed; top: 0; right: -100%; width: 100%; max-width: 380px; height: 100vh;
+        z-index: 2000; transition: 0.3s; box-shadow: -5px 0 15px rgba(0,0,0,0.1);
+        display: flex; flex-direction: column;
+    }
+    #carrinhoLateral.active { right: 0; }
+    #overlayCarrinho {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.5); z-index: 1999; display: none;
+    }
+    .cart-item { border-bottom: 1px solid #eee; padding: 10px 0; }
+    
+    /* Regra extra para as linhas do carrinho no Modo Escuro */
+    body.dark-mode .cart-item { border-bottom: 1px solid #495057 !important; }
+</style>
+
+<div id="overlayCarrinho" onclick="fecharCarrinho()" style="display: none;"></div>
+<div id="carrinhoLateral" class="bg-white">
+    <div class="p-3 bg-danger text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 fw-bold"><i class="fas fa-shopping-cart me-2" aria-hidden="true"></i>Meu Pedido</h5>
+        <button class="btn-close btn-close-white" onclick="fecharCarrinho()" aria-label="Fechar carrinho"></button>
+    </div>
+    <div id="itensCarrinhoLateral" class="p-3 flex-grow-1 overflow-auto"></div>
+    <div class="p-3 border-top bg-light">
+        <div class="d-flex justify-content-between h5 fw-bold mb-3">
+            <span>Subtotal</span>
+            <span id="totalLateral" class="text-danger">R$ 0,00</span>
+        </div>
+        <button class="btn btn-danger w-100 py-3 fw-bold rounded-pill shadow" onclick="window.location.href='/Carrinho/Index'">
+            FINALIZAR PEDIDO
+        </button>
+    </div>
+</div>
+
+<h1 class="visually-hidden">Cardápio da ScarFood</h1>
+
+<div class="row g-3 mb-4 mt-2">
+    <div class="col-md-6">
+        <input type="text" id="searchInput" class="form-control form-control-lg" placeholder="Pesquisar lanche, pizza..." aria-label="Pesquisar produtos no cardápio">
+    </div>
+    <div class="col-md-6 d-flex gap-2">
+        <select id="priceFilter" class="form-select form-select-lg" onchange="filterProducts()" aria-label="Filtro de ordenação de preços">
+            <option value="none">Ordenar por...</option>
+            <option value="low">Menor Preço</option>
+            <option value="high">Maior Preço</option>
+            <option value="popular">Mais Pedidos</option>
+        </select>
+    </div>
+</div>
+
+<div class="categories-bar mb-4">
+    <div class="container d-flex gap-2 overflow-auto py-2">
+        @foreach (var catNome in categoriasFinais)
+        {
+            if (Model.Any(p => p.Categoria.Equals(catNome, System.StringComparison.OrdinalIgnoreCase)))
+            {
+                <a href="#cat-@catNome.Replace(" ", "")" class="btn btn-outline-danger btn-sm rounded-pill fw-bold">@catNome</a>
+            }
+        }
+    </div>
+</div>
+
+<div id="catalog">
+    @foreach (var catNome in categoriasFinais)
+    {
+        var produtosDaCategoria = Model.Where(x => x.Categoria.Equals(catNome, System.StringComparison.OrdinalIgnoreCase)).ToList();
+        
+        if (produtosDaCategoria.Count > 0)
+        {
+            <h2 id="cat-@catNome.Replace(" ", "")" class="category-section mb-3 fw-bold">@catNome</h2>
+            <div class="row row-cols-1 row-cols-md-3 g-4 mb-5 container-produtos">
+                @foreach (var p in produtosDaCategoria) 
+                {
+                    var extrasJson = System.Text.Json.JsonSerializer.Serialize(p.Extras ?? new List<ScarFood.Models.IngredienteExtra>());
+
+                    <div class="col product-item" data-name="@p.Nome" data-price="@p.Preco" data-sales="@p.Vendas">
+                        <div class="card h-100 product-card shadow-sm" tabindex="0" role="button" aria-label="Ver detalhes de @p.Nome"
+                             data-id="@p.Id" 
+                             data-nome="@p.Nome" 
+                             data-preco="@p.Preco" 
+                             data-desc="@p.Descricao" 
+                             data-extras="@extrasJson"
+                             onclick="clicarProduto(this)"
+                             onkeypress="if(event.key === 'Enter') clicarProduto(this)">
+                             
+                            <img src="@p.FotoUrl" class="card-img-top" alt="Foto do produto @p.Nome" style="height: 200px; object-fit: cover;">
+                            <div class="card-body">
+                                <h3 class="card-title h5 fw-bold">@p.Nome</h3>
+                                <p class="card-text text-muted small">@p.Descricao</p>
+                                <h6 class="text-success fw-bold">R$ @p.Preco.ToString("F2")</h6>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+<div class="modal fade" id="productModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 modal-header-scar">
+                <h2 class="modal-title h5 fw-bold" id="modalNome"></h2>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar janela"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p id="modalDescricao" class="text-muted small mb-4"></p>
+                <div id="secaoPersonalizar" class="p-3 mb-4 bg-scar-light" style="border-radius: 12px; border-left: 5px solid #EA1D2C; display: none;">
+                    <h3 class="h6 fw-bold mb-3 text-scar">Personalize seu pedido</h3>
+                    <div id="modalIngredientes"></div>
+                </div>
+                <div class="mt-4">
+                    <label for="observacao" class="fw-bold small text-muted mb-2">ALGUMA OBSERVAÇÃO?</label>
+                    <textarea class="form-control border-0 bg-light" id="observacao" rows="2" placeholder="Ex: Tirar cebola..." style="border-radius: 10px;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-3 bg-light" style="border-radius: 0 0 20px 20px;">
+                <div class="d-flex flex-wrap w-100 gap-2">
+                    <div class="d-flex justify-content-between align-items-center w-100 mb-1">
+                        <span class="text-muted small fw-bold">PREÇO FINAL</span>
+                        <div class="h4 text-scar fw-bold mb-0" id="modalTotal" aria-live="polite">R$ 0,00</div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center w-100 gap-2">
+                        <div class="d-flex align-items-center bg-white rounded-pill shadow-sm px-2 py-1 border">
+                            <button class="btn btn-link text-scar fw-bold p-0 px-3 text-decoration-none fs-5" onclick="updateProductQty(-1)" aria-label="Diminuir quantidade">-</button>
+                            <span id="productQty" class="fw-bold text-dark mx-1" style="min-width: 20px; text-align: center;" aria-live="polite">1</span>
+                            <button class="btn btn-link text-scar fw-bold p-0 px-3 text-decoration-none fs-5" onclick="updateProductQty(1)" aria-label="Aumentar quantidade">+</button>
+                        </div>
+                        <button class="btn btn-danger py-2 fw-bold rounded-pill shadow-sm flex-grow-1" style="background-color:#EA1D2C" onclick="addToCart()">
+                            ADICIONAR
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="loginPromptModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 bg-light justify-content-center pt-4">
+                <div class="rounded-circle bg-scar-light p-3">
+                    <i class="fas fa-user-lock text-danger fs-1" aria-hidden="true"></i>
+                </div>
+            </div>
+            <div class="modal-body text-center p-4">
+                <h2 class="h4 fw-bold text-dark">Quase lá!</h2>
+                <p class="text-muted">Para adicionar itens ao seu carrinho e saborear nossos lanches, você precisa estar conectado.</p>
+            </div>
+            <div class="modal-footer border-0 p-4 pt-0 d-flex flex-column gap-2">
+                <a href="/Autenticacao/Login" class="btn btn-danger w-100 py-3 fw-bold rounded-pill shadow-sm" style="background-color: #EA1D2C;">ENTRAR NA MINHA CONTA</a>
+                <a href="/Autenticacao/Registro" class="btn btn-outline-danger w-100 py-3 fw-bold rounded-pill border-2">CRIAR UMA CONTA NOVA</a>
+                <button type="button" class="btn btn-link text-muted text-decoration-none btn-sm mt-2" data-bs-dismiss="modal">Continuar apenas olhando</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalEditarItem" tabindex="-1" style="z-index: 2050;" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 modal-header-scar">
+                <h2 class="modal-title h5 fw-bold" id="editItemNomeTitulo"></h2>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar janela"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="secaoPersonalizarEdit" class="p-3 mb-4 bg-scar-light" style="border-radius: 12px; border-left: 5px solid #EA1D2C; display: none;">
+                    <h3 class="h6 fw-bold mb-3 text-scar">Personalize seu pedido</h3>
+                    <div id="modalIngredientesEdit"></div>
+                </div>
+                <div class="mt-4">
+                    <label for="editItemObs" class="fw-bold small text-muted mb-2">ALGUMA OBSERVAÇÃO?</label>
+                    <textarea class="form-control border-0 bg-light" id="editItemObs" rows="3" placeholder="Ex: Tirar cebola..." style="border-radius: 10px;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-3 bg-light" style="border-radius: 0 0 20px 20px;">
+                <div class="d-flex flex-wrap w-100 gap-2">
+                    <div class="d-flex justify-content-between align-items-center w-100 mb-1">
+                        <span class="text-muted small fw-bold">PREÇO TOTAL</span>
+                        <div class="h4 text-scar fw-bold mb-0" id="editItemTotal" aria-live="polite">R$ 0,00</div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center w-100 gap-2">
+                        <div class="d-flex align-items-center bg-white rounded-pill shadow-sm px-2 py-1 border">
+                            <button class="btn btn-link text-scar fw-bold p-0 px-3 text-decoration-none fs-5" onclick="updateEditQty(-1)" aria-label="Diminuir quantidade">-</button>
+                            <span id="editItemQtde" class="fw-bold text-dark mx-1" style="min-width: 20px; text-align: center;" aria-live="polite">1</span>
+                            <button class="btn btn-link text-scar fw-bold p-0 px-3 text-decoration-none fs-5" onclick="updateEditQty(1)" aria-label="Aumentar quantidade">+</button>
+                        </div>
+                        <button class="btn btn-danger py-2 fw-bold rounded-pill shadow-sm flex-grow-1" style="background-color:#EA1D2C" onclick="salvarEdicaoItem()">
+                            SALVAR
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentBasePrice = 0; let extraTotal = 0; let currentProductId = 0; let productQuantity = 1; let ingredients = {}; 
+    let indexItemEdicao = -1; let editItemBasePrice = 0; let editItemQuantity = 1; let editIngredients = {}; 
+
+    function normalizar(texto) { return texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+
+    function filterProducts() {
+        let criteria = document.getElementById('priceFilter').value;
+        
+        if (criteria === 'none') {
+            window.location.reload();
+            return;
+        }
+
+        let containers = Array.from(document.querySelectorAll('.container-produtos'));
+        
+        containers.forEach(container => {
+            let items = Array.from(container.querySelectorAll('.product-item'));
+            items.sort((a, b) => {
+                let priceA = parseFloat(a.dataset.price.replace(',', '.'));
+                let priceB = parseFloat(b.dataset.price.replace(',', '.'));
+                let salesA = parseInt(a.dataset.sales || '0');
+                let salesB = parseInt(b.dataset.sales || '0');
+                
+                if (criteria === 'low') return priceA - priceB;
+                if (criteria === 'high') return priceB - priceA;
+                if (criteria === 'popular') return salesB - salesA;
+                return 0;
+            });
+            
+            items.forEach(item => container.appendChild(item));
+        });
+    }
+
+    document.getElementById('searchInput').addEventListener('input', function(e) {
+        let term = normalizar(e.target.value);
+        let criteria = document.getElementById('priceFilter').value;
+        
+        let allItems = document.querySelectorAll('.product-item');
+        allItems.forEach(item => {
+            let name = normalizar(item.dataset.name);
+            item.style.display = name.includes(term) ? "" : "none";
+        });
+
+        document.querySelectorAll('.category-section').forEach(catTitle => {
+            let container = catTitle.nextElementSibling;
+            let items = Array.from(container.querySelectorAll('.product-item'));
+            let hasVisible = items.some(item => item.style.display !== "none");
+            
+            catTitle.style.display = hasVisible ? "" : "none";
+            container.style.display = hasVisible ? "" : "none";
+        });
+    });
+
+    function clicarProduto(elementoCard) {
+        let id = elementoCard.getAttribute('data-id');
+        let nome = elementoCard.getAttribute('data-nome');
+        let preco = elementoCard.getAttribute('data-preco');
+        let desc = elementoCard.getAttribute('data-desc');
+        let extrasJson = elementoCard.getAttribute('data-extras');
+        openModal(id, nome, preco, desc, extrasJson);
+    }
+
+    function openModal(id, nome, preco, descricao, extrasJson) {
+        currentProductId = id;
+        currentBasePrice = parseFloat(preco.toString().replace(',', '.'));
+        extraTotal = 0; productQuantity = 1; 
+        document.getElementById('modalNome').innerText = nome;
+        document.getElementById('modalDescricao').innerText = descricao;
+        document.getElementById('observacao').value = "";
+        document.getElementById('productQty').innerText = "1";
+
+        ingredients = {};
+        let modalIngredientesDiv = document.getElementById('modalIngredientes');
+        let secaoPersonalizar = document.getElementById('secaoPersonalizar');
+        modalIngredientesDiv.innerHTML = "";
+
+        let extras = JSON.parse(extrasJson || "[]");
+        if (extras.length > 0) {
+            secaoPersonalizar.style.display = "block";
+            let html = "";
+            extras.forEach((ex, idx) => {
+                let safeName = "ing_" + idx;
+                ingredients[safeName] = { nomeReal: ex.Nome, qty: 1, price: ex.Preco }; 
+                html += `
+                <div class="ingredient-control">
+                    <div>
+                        <span class="fw-bold">${ex.Nome}</span>
+                        <span class="text-danger fw-bold small ms-1">(+ R$ ${ex.Preco.toFixed(2).replace('.',',')})</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-3 bg-white p-2 rounded-pill shadow-sm">
+                        <button class="btn btn-sm btn-outline-danger border-0 fw-bold" onclick="updateQty('${safeName}', -1)" aria-label="Remover ${ex.Nome}">-</button>
+                        <span id="qty-${safeName}" class="fw-bold text-dark" aria-live="polite">1</span>
+                        <button class="btn btn-sm btn-outline-danger border-0 fw-bold" onclick="updateQty('${safeName}', 1)" aria-label="Adicionar ${ex.Nome}">+</button>
+                    </div>
+                </div>`;
+            });
+            modalIngredientesDiv.innerHTML = html;
+        } else {
+            secaoPersonalizar.style.display = "none";
+        }
+        updateTotal();
+        new bootstrap.Modal(document.getElementById('productModal')).show();
+    }
+
+    function updateProductQty(change) {
+        productQuantity = Math.max(1, productQuantity + change);
+        document.getElementById('productQty').innerText = productQuantity;
+        updateTotal();
+    }
+
+    function updateQty(ing, change) {
+        let item = ingredients[ing];
+        item.qty = Math.max(0, item.qty + change);
+        document.getElementById(`qty-${ing}`).innerText = item.qty;
+        calculateExtras();
+    }
+
+    function calculateExtras() {
+        extraTotal = 0;
+        for (let key in ingredients) {
+            if (ingredients[key].qty > 1) extraTotal += (ingredients[key].qty - 1) * ingredients[key].price;
+        }
+        updateTotal();
+    }
+
+    function updateTotal() {
+        let total = (currentBasePrice + extraTotal) * productQuantity;
+        document.getElementById('modalTotal').innerText = `R$ ${total.toFixed(2).replace('.', ',')}`;
+    }
+
+    function abrirCarrinho() {
+        const sidebar = document.getElementById('carrinhoLateral');
+        const overlay = document.getElementById('overlayCarrinho');
+        if (sidebar && overlay) { sidebar.classList.add('active'); overlay.style.display = "block"; atualizarItensLateral(); }
+    }
+
+    function fecharCarrinho() {
+        const sidebar = document.getElementById('carrinhoLateral');
+        const overlay = document.getElementById('overlayCarrinho');
+        if(sidebar) sidebar.classList.remove('active');
+        if(overlay) overlay.style.display = "none";
+    }
+
+    function atualizarItensLateral() {
+        $.get("/Carrinho/ObterCarrinhoAjax", function(response) {
+            let html = "";
+            let totalGeral = response.total || 0;
+            let itens = response.itens || [];
+
+            if (itens.length > 0) {
+                itens.forEach((item, index) => {
+                    let obsLimpa = (item.observacao && item.observacao !== "null") ? item.observacao : "";
+                    html += `
+                    <div class="cart-item border-bottom mb-2 pb-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="fw-bold small">${item.quantidade}x ${item.nome}</span>
+                                <div class="text-muted" style="font-size: 10px;">${obsLimpa}</div>
+                                <span class="text-danger fw-bold small">R$ ${item.precoTotal.toFixed(2).replace('.',',')}</span>
+                            </div>
+                            <div class="d-flex flex-column gap-1">
+                                <button class="btn btn-sm text-muted p-0" onclick="abrirEdicao(${index}, '${item.nome}', ${item.quantidade}, '${obsLimpa}', ${item.precoUnitario})" aria-label="Editar item ${item.nome}">
+                                    <i class="fas fa-pen" aria-hidden="true"></i>
+                                </button>
+                                <button class="btn btn-sm text-danger p-0" onclick="removerItemAjax(${index})" aria-label="Remover item ${item.nome} do carrinho">
+                                    <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+            } else {
+                html = "<p class='text-center mt-5 text-muted'>Seu carrinho está vazio</p>";
+            }
+            document.getElementById('itensCarrinhoLateral').innerHTML = html;
+            document.getElementById('totalLateral').innerText = `R$ ${totalGeral.toFixed(2).replace('.',',')}`;
+        });
+    }
+
+    function removerItemAjax(index) {
+        $.post("/Carrinho/RemoverAjax", { index: index }, function() { atualizarItensLateral(); });
+    }
+
+    function abrirEdicao(index, nome, qtde, obs, precoUnitario) {
+        indexItemEdicao = index; editItemQuantity = qtde; editItemBasePrice = parseFloat(precoUnitario); editIngredients = {}; 
+        let customObs = obs || "";
+        let cardapioItems = Array.from(document.querySelectorAll('.product-item'));
+        let meuLanche = cardapioItems.find(i => normalizar(i.dataset.name) === normalizar(nome));
+        
+        let secaoPersonalizarEdit = document.getElementById('secaoPersonalizarEdit');
+        let divIngredientesEdit = document.getElementById('modalIngredientesEdit');
+        divIngredientesEdit.innerHTML = "";
+        
+        if(meuLanche) {
+            let extras = JSON.parse(meuLanche.querySelector('.card').getAttribute('data-extras') || "[]");
+            if (extras.length > 0) {
+                secaoPersonalizarEdit.style.display = "block";
+                let html = ""; let extractedExtrasValue = 0; 
+                
+                extras.forEach((ex, idx) => {
+                    let safeName = "ing_" + idx; let qtyAtual = 1; 
+                    let regexRemover = new RegExp(`\\(REMOVER ${ex.Nome.toUpperCase()}\\)`);
+                    let regexAdicional = new RegExp(`\\(\\+(\\d+) Adicional de ${ex.Nome}\\)`);
+                    
+                    if (regexRemover.test(customObs)) {
+                        qtyAtual = 0; customObs = customObs.replace(regexRemover, "").trim();
+                    } else {
+                        let matchExtra = customObs.match(regexAdicional);
+                        if (matchExtra) {
+                            qtyAtual = 1 + parseInt(matchExtra[1]);
+                            customObs = customObs.replace(matchExtra[0], "").trim();
+                            extractedExtrasValue += (qtyAtual - 1) * ex.Preco; 
+                        }
+                    }
+                    editIngredients[safeName] = { nomeReal: ex.Nome, qty: qtyAtual, price: ex.Preco };
+                    html += `
+                    <div class="ingredient-control">
+                        <div>
+                            <span class="fw-bold">${ex.Nome}</span>
+                            <span class="text-danger fw-bold small ms-1">(+ R$ ${ex.Preco.toFixed(2).replace('.',',')})</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-3 bg-white p-2 rounded-pill shadow-sm">
+                            <button class="btn btn-sm btn-outline-danger border-0 fw-bold" onclick="updateEditIngredientQty('${safeName}', -1)" aria-label="Remover ${ex.Nome}">-</button>
+                            <span id="edit-qty-${safeName}" class="fw-bold text-dark" aria-live="polite">${qtyAtual}</span>
+                            <button class="btn btn-sm btn-outline-danger border-0 fw-bold" onclick="updateEditIngredientQty('${safeName}', 1)" aria-label="Adicionar ${ex.Nome}">+</button>
+                        </div>
+                    </div>`;
+                });
+                divIngredientesEdit.innerHTML = html;
+                editItemBasePrice = parseFloat(precoUnitario) - extractedExtrasValue;
+            } else { secaoPersonalizarEdit.style.display = "none"; }
+        } else { secaoPersonalizarEdit.style.display = "none"; }
+
+        document.getElementById('editItemNomeTitulo').innerText = nome;
+        document.getElementById('editItemQtde').innerText = editItemQuantity;
+        document.getElementById('editItemObs').value = customObs.trim();
+        
+        atualizarTotalEdicao();
+        new bootstrap.Modal(document.getElementById('modalEditarItem')).show();
+    }
+
+    function updateEditQty(change) {
+        editItemQuantity = Math.max(1, editItemQuantity + change);
+        document.getElementById('editItemQtde').innerText = editItemQuantity;
+        atualizarTotalEdicao();
+    }
+
+    function updateEditIngredientQty(ing, change) {
+        editIngredients[ing].qty = Math.max(0, editIngredients[ing].qty + change);
+        document.getElementById(`edit-qty-${ing}`).innerText = editIngredients[ing].qty;
+        atualizarTotalEdicao();
+    }
+
+    function atualizarTotalEdicao() {
+        let extras = 0;
+        for(let key in editIngredients) {
+            if (editIngredients[key].qty > 1) extras += (editIngredients[key].qty - 1) * editIngredients[key].price;
+        }
+        let total = (editItemBasePrice + extras) * editItemQuantity;
+        document.getElementById('editItemTotal').innerText = `R$ ${total.toFixed(2).replace('.', ',')}`;
+    }
+
+    function salvarEdicaoItem() {
+        let obsFinal = document.getElementById('editItemObs').value.trim();
+        let extrasPrecoTotal = 0;
+        for(let key in editIngredients) {
+            let item = editIngredients[key];
+            if (item.qty === 0) obsFinal += ` (REMOVER ${item.nomeReal.toUpperCase()})`;
+            else if (item.qty > 1) {
+                obsFinal += ` (+${item.qty - 1} Adicional de ${item.nomeReal})`;
+                extrasPrecoTotal += (item.qty - 1) * item.price;
+            }
+        }
+        
+        let precoFinal = (editItemBasePrice + extrasPrecoTotal) * editItemQuantity;
+
+        $.post("/Carrinho/EditarItemAjax", { 
+            index: indexItemEdicao, quantidade: editItemQuantity, observacao: obsFinal.trim(), precoFinalStr: precoFinal.toFixed(2).replace('.', ',')
+        }, function(res) {
+            if(res.success) {
+                bootstrap.Modal.getInstance(document.getElementById('modalEditarItem')).hide();
+                atualizarItensLateral();
+            }
+        });
+    }
+
+    function addToCart() {
+        let obsFinal = document.getElementById('observacao').value.trim();
+        for (let key in ingredients) {
+            let item = ingredients[key];
+            if (item.qty === 0) obsFinal += ` (REMOVER ${item.nomeReal.toUpperCase()})`;
+            else if (item.qty > 1) obsFinal += ` (+${item.qty - 1} Adicional de ${item.nomeReal})`;
+        }
+
+        let precoFinal = (currentBasePrice + extraTotal) * productQuantity;
+
+        $.post("/Carrinho/Adicionar", {
+            id: parseInt(currentProductId), nome: document.getElementById('modalNome').innerText,
+            preco: precoFinal.toFixed(2).replace('.', ','), quantidade: productQuantity, observacao: obsFinal.trim()
+        }, function(res) {
+            if(res.success) {
+                bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
+                abrirCarrinho();
+            } else {
+                bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
+                new bootstrap.Modal(document.getElementById('loginPromptModal')).show();
+            }
+        }).fail(() => alert("Erro ao conectar com o servidor."));
+    }
+</script>

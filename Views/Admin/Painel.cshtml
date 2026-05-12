@@ -1,0 +1,690 @@
+@model List<ScarFood.Models.Produto>
+
+@{
+    ViewData["Title"] = "Administração";
+}
+
+<style>
+    .nav-pills .nav-link { color: #EA1D2C; border: 1px solid #EA1D2C; border-radius: 50px; padding: 10px 30px; font-weight: bold; }
+    .nav-pills .nav-link:hover { background-color: #fff5f5; }
+    .nav-pills .nav-link.active { background-color: #EA1D2C !important; color: white !important; border-color: #EA1D2C; }
+    .modal-header-scar { background-color: #EA1D2C; color: white; border-radius: 15px 15px 0 0; }
+</style>
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-danger mb-0">Painel de Gestão</h2>
+        <a href="/" class="btn btn-outline-danger btn-sm rounded-pill fw-bold">Ver Loja</a>
+    </div>
+
+    <ul class="nav nav-pills mb-5 justify-content-center gap-3" id="adminTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="estatisticas-tab" data-bs-toggle="tab" data-bs-target="#estatisticas" type="button" role="tab">Estatísticas de Venda</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="cardapio-tab" data-bs-toggle="tab" data-bs-target="#cardapio" type="button" role="tab">Edição do Cardápio</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="pedidos-tab" data-bs-toggle="tab" data-bs-target="#pedidos" type="button" role="tab">Gestão de Pedidos</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="categorias-tab" data-bs-toggle="tab" data-bs-target="#categorias_pane" type="button" role="tab">Categorias</button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="adminTabsContent">
+
+        <div class="tab-pane fade show active" id="estatisticas" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                <h5 class="fw-bold text-danger mb-0"><i class="fas fa-chart-pie me-2"></i>Dashboard Financeiro</h5>
+                
+                <div class="d-flex gap-2 align-items-center bg-white p-2 rounded-pill shadow-sm border">
+                    <select id="filtroTipo" class="form-select form-select-sm border-0 fw-bold bg-transparent" onchange="atualizarRelatorio()" style="cursor: pointer;">
+                        <option value="diario">Vendas de Hoje</option>
+                        <option value="semanal">Últimos 7 Dias</option>
+                        <option value="mensal" selected>Relatório Mensal</option>
+                        <option value="anual">Relatório Anual</option>
+                        <option value="tudo">Todo o Período</option>
+                    </select>
+
+                    <select id="filtroMes" class="form-select form-select-sm border-0 fw-bold bg-transparent text-danger" onchange="atualizarRelatorio()" style="cursor: pointer;">
+                        <option value="1">Janeiro</option> <option value="2">Fevereiro</option>
+                        <option value="3">Março</option>   <option value="4">Abril</option>
+                        <option value="5">Maio</option>    <option value="6">Junho</option>
+                        <option value="7">Julho</option>   <option value="8">Agosto</option>
+                        <option value="9">Setembro</option><option value="10">Outubro</option>
+                        <option value="11">Novembro</option><option value="12">Dezembro</option>
+                    </select>
+
+                    <select id="filtroAno" class="form-select form-select-sm border-0 fw-bold bg-transparent text-danger" onchange="atualizarRelatorio()" style="cursor: pointer;">
+                        <option value="2026">2026</option>
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="row g-3 text-center mb-4">
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm p-3 h-100 bg-white" style="border-radius: 12px; border-left: 5px solid #28a745 !important;">
+                        <h6 class="text-muted small fw-bold">FATURAMENTO TOTAL</h6>
+                        <h4 class="fw-bold text-success mb-0" id="dashFaturamento">R$ 0,00</h4>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm p-3 h-100 bg-white" style="border-radius: 12px; border-left: 5px solid #17a2b8 !important;">
+                        <h6 class="text-muted small fw-bold">PEDIDOS REALIZADOS</h6>
+                        <h4 class="fw-bold text-info mb-0" id="dashQtdPedidos">0</h4>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm p-3 h-100 bg-white" style="border-radius: 12px; border-left: 5px solid #ffc107 !important;">
+                        <h6 class="text-muted small fw-bold">TICKET MÉDIO (POR PEDIDO)</h6>
+                        <h4 class="fw-bold text-warning mb-0" id="dashTicketMedio">R$ 0,00</h4>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 shadow-sm p-3 h-100 bg-white" style="border-radius: 12px; border-left: 5px solid #6f42c1 !important;">
+                        <h6 class="text-muted small fw-bold">ITENS VENDIDOS</h6>
+                        <h4 class="fw-bold mb-0" style="color: #6f42c1;" id="dashItensVendidos">0</h4>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm bg-white h-100" style="border-radius: 15px;">
+                        <div class="card-header bg-transparent border-0 pt-4 pb-2">
+                            <h6 class="fw-bold text-danger mb-0"><i class="fas fa-fire me-2"></i>Produtos Que Mais Saem</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover table-borderless align-middle mb-0">
+                                    <thead>
+                                        <tr class="border-bottom">
+                                            <th class="text-muted small">Produto</th>
+                                            <th class="text-muted small text-center">Vendidos</th>
+                                            <th class="text-muted small text-end">Faturamento</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabelaTopProdutos">
+                                        </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm bg-white h-100" style="border-radius: 15px;">
+                        <div class="card-header bg-transparent border-0 pt-4 pb-2">
+                            <h6 class="fw-bold text-danger mb-0"><i class="fas fa-crown me-2"></i>Clientes Que Mais Compram</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover table-borderless align-middle mb-0">
+                                    <thead>
+                                        <tr class="border-bottom">
+                                            <th class="text-muted small">Cliente</th>
+                                            <th class="text-muted small text-center">Pedidos</th>
+                                            <th class="text-muted small text-end">Gasto Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabelaTopClientes">
+                                        </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="cardapio" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold text-danger">Itens do Cardápio</h5>
+                <button class="btn btn-danger btn-sm px-4 py-2 fw-bold shadow-sm rounded-pill" style="background-color: #EA1D2C;" data-bs-toggle="modal" data-bs-target="#modalNovoProduto">+ Novo Item</button>
+            </div>
+
+            <div class="card border-0 shadow-sm" style="border-radius: 15px; overflow: hidden;">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="ps-4 py-3 text-danger">Produto</th>
+                                <th class="text-danger">Categoria</th>
+                                <th class="text-danger">Preço</th>
+                                <th class="text-center text-danger">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model != null && Model.Count > 0)
+                            {
+                                @foreach (var p in Model)
+                                {
+                                    <tr>
+                                        <td class="ps-4 py-3 fw-bold">@p.Nome</td>
+                                        <td><span class="badge bg-danger text-white rounded-pill px-3">@p.Categoria</span></td>
+                                        <td class="fw-bold text-success">R$ @p.Preco.ToString("F2")</td>
+                                        <td class="text-center">
+                                            <a href="/Admin/Editar/@p.Id" class="btn btn-sm btn-light border text-primary fw-bold me-2">Editar</a>
+                                            <form asp-action="ExcluirProduto" asp-controller="Admin" method="post" class="d-inline" onsubmit="return confirm('Tem certeza que deseja excluir @p.Nome?');">
+                                                <input type="hidden" name="id" value="@p.Id" />
+                                                <button type="submit" class="btn btn-sm btn-light border text-danger fw-bold">Excluir</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted">Nenhum produto cadastrado.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="pedidos" role="tabpanel">
+            <h5 class="fw-bold text-danger mb-4">Pedidos dos Clientes</h5>
+            
+            <div class="row">
+                @{ var listaPedidos = ViewBag.Pedidos as List<ScarFood.Models.Pedido> ?? new List<ScarFood.Models.Pedido>(); }
+                
+                @if(listaPedidos.Count == 0) {
+                    <p class="text-muted text-center py-5">Nenhum pedido recebido ainda.</p>
+                }
+                
+                @foreach (var ped in listaPedidos)
+                {
+                    <div class="col-12 mb-3">
+                        <div class="card border-0 shadow-sm" style="border-left: 5px solid @(ped.Status == "CONCLUIDO" ? "#28a745" : "#EA1D2C");">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                                    <div>
+                                        <h6 class="fw-bold mb-1">Pedido #@ped.Id <span class="badge bg-light text-dark ms-2 border">@ped.TipoEntrega</span></h6>
+                                        <small class="text-muted"><i class="fas fa-user me-1"></i> @ped.UserEmail • @ped.Data</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <strong class="text-success d-block mb-2">R$ @ped.Total</strong>
+                                        
+                                        <form asp-action="AtualizarStatusPedido" asp-controller="Admin" method="post" class="d-flex gap-2 align-items-center">
+                                            <input type="hidden" name="pedidoId" value="@ped.Id" />
+                                            <select name="status" class="form-select form-select-sm fw-bold bg-light border-0">
+                                                <option value="AGUARDANDO" selected="@(ped.Status == "AGUARDANDO")">Aguardando</option>
+                                                <option value="EM PREPARO" selected="@(ped.Status == "EM PREPARO")">Em Preparo (Cozinhando)</option>
+                                                <option value="SAIU PARA ENTREGA" selected="@(ped.Status == "SAIU PARA ENTREGA")">Saiu para Entrega</option>
+                                                <option value="CONCLUIDO" selected="@(ped.Status == "CONCLUIDO")">Concluído</option>
+                                            </select>
+                                            <button type="submit" class="btn btn-sm btn-dark fw-bold">Salvar</button>
+                                        </form>
+                                    </div>
+                                </div>
+                                <hr class="opacity-25 my-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="small">
+                                        <span class="fw-bold">Itens:</span> 
+                                        @string.Join(", ", ped.Itens.Select(i => $"{i.Quantidade}x {i.Nome}"))
+                                    </div>
+                                    <button class="btn btn-outline-danger btn-sm fw-bold rounded-pill" onclick="abrirChatAdmin('@ped.Id')">
+                                        <i class="fas fa-headset"></i> Responder Chat
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="categorias_pane" role="tabpanel">
+            <h5 class="fw-bold text-danger mb-4">Organizar Categorias do Cardápio</h5>
+            <div class="row">
+                <div class="col-md-5 mb-4">
+                    <div class="card border-0 shadow-sm p-4">
+                        <h6 class="fw-bold mb-3">Nova Categoria</h6>
+                        <form asp-action="AdicionarCategoria" asp-controller="Admin" method="post" class="d-flex gap-2">
+                            <input type="text" name="nome" class="form-control bg-light border-0" placeholder="Ex: Promoções" required>
+                            <button type="submit" class="btn btn-danger fw-bold">+</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <div class="card border-0 shadow-sm p-4">
+                        <h6 class="fw-bold mb-3">Ordem de Exibição (Visão do Cliente)</h6>
+                        <ul class="list-group">
+                            @if(ViewBag.Categorias != null) {
+                                foreach(var cat in ViewBag.Categorias) {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center border-0 bg-light mb-2 rounded-3">
+                                        <span class="fw-bold">@cat.Nome</span>
+                                        <div class="d-flex gap-1">
+                                            <form asp-action="MoverCategoria" asp-controller="Admin" method="post">
+                                                <input type="hidden" name="nome" value="@cat.Nome" />
+                                                <input type="hidden" name="direcao" value="-1" />
+                                                <button type="submit" class="btn btn-sm btn-white text-muted shadow-sm" title="Subir"><i class="fas fa-arrow-up"></i></button>
+                                            </form>
+                                            <form asp-action="MoverCategoria" asp-controller="Admin" method="post">
+                                                <input type="hidden" name="nome" value="@cat.Nome" />
+                                                <input type="hidden" name="direcao" value="1" />
+                                                <button type="submit" class="btn btn-sm btn-white text-muted shadow-sm" title="Descer"><i class="fas fa-arrow-down"></i></button>
+                                            </form>
+                                            <button type="button" class="btn btn-sm btn-danger shadow-sm" onclick="abrirModalExcluirCategoria('@cat.Nome')" title="Excluir">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </li>
+                                }
+                            }
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div class="modal fade" id="modalNovoProduto" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 15px;">
+            <div class="modal-header border-0 modal-header-scar">
+                <h5 class="modal-title fw-bold text-white">Cadastrar Novo Produto</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form asp-action="SalvarNovoProduto" asp-controller="Admin" method="post" enctype="multipart/form-data">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small text-muted">Nome do Lanche</label>
+                                <input type="text" name="Nome" class="form-control bg-light border-0" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small text-muted">Descrição</label>
+                                <textarea name="Descricao" class="form-control bg-light border-0" rows="3"></textarea>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-6 mb-3">
+                                    <label class="form-label fw-bold small text-muted">Preço (Ex: 25,50)</label>
+                                    <input type="text" name="Preco" class="form-control bg-light border-0" required>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label class="form-label fw-bold small text-muted">Categoria</label>
+                                    <select name="Categoria" class="form-select bg-light border-0" required>
+                                        @if(ViewBag.Categorias != null) {
+                                            foreach(var cat in ViewBag.Categorias) {
+                                                <option value="@cat.Nome">@cat.Nome</option>
+                                            }
+                                        } else {
+                                            <option value="Lanches">Lanches</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small text-muted">Foto (Arquivo OU Link da internet)</label>
+                                <input type="file" name="FotoArquivo" class="form-control bg-light border-0 mb-2" accept="image/*">
+                                <input type="text" name="FotoUrl" class="form-control bg-light border-0" placeholder="Ou cole a URL aqui...">
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 border-start ps-md-4">
+                            <h6 class="fw-bold text-danger mb-3">Personalizar Pedido (Opcional)</h6>
+                            <p class="text-muted small">Adicione ingredientes que o cliente pode incluir ou remover.</p>
+                            
+                            <div id="listaIngredientes"></div>
+                            
+                            <button type="button" class="btn btn-outline-danger btn-sm fw-bold w-100 rounded-pill mt-2" onclick="adicionarLinhaIngrediente()">
+                                + Adicionar Ingrediente
+                            </button>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+                    <button type="submit" class="btn btn-danger w-100 fw-bold py-3 shadow-sm rounded-pill" style="background-color:#EA1D2C;">Salvar Produto no Cardápio</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="chatModalAdmin" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 15px;">
+            <div class="modal-header text-white" style="background-color: #212529;">
+                <h6 class="modal-title fw-bold"><i class="fas fa-headset me-2"></i>Atendimento Lanchonete - Pedido #<span id="labelPedidoIdAdmin"></span></h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light" id="chatContainerAdmin" style="height: 350px; overflow-y: auto;">
+            </div>
+            <div class="modal-footer p-2 bg-white border-0">
+                <div class="input-group">
+                    <input type="text" id="chatInputAdmin" class="form-control border-0 bg-light" placeholder="Responder cliente...">
+                    <button class="btn btn-dark" onclick="enviarMensagemAdmin()"><i class="fas fa-paper-plane"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalExcluirCategoria" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 bg-danger text-white" style="border-radius: 20px 20px 0 0;">
+                <h5 class="modal-title fw-bold"><i class="fas fa-exclamation-triangle me-2"></i>Atenção</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <h5 class="fw-bold mb-3">Excluir a categoria "<span id="nomeCategoriaExcluirVisor" class="text-danger"></span>"?</h5>
+                <p class="text-muted small">
+                    Lanches vinculados a esta categoria <b>não serão apagados</b> do sistema, mas <b>sumirão da tela do cliente</b> até que você os atualize para uma categoria nova.
+                </p>
+            </div>
+            <div class="modal-footer border-0 p-3 d-flex justify-content-center bg-light" style="border-radius: 0 0 20px 20px;">
+                <button type="button" class="btn btn-secondary rounded-pill px-4 fw-bold shadow-sm" data-bs-dismiss="modal">Cancelar</button>
+                <form asp-action="ExcluirCategoria" asp-controller="Admin" method="post" id="formExcluirCategoria">
+                    <input type="hidden" name="nome" id="inputNomeCategoriaExcluir" value="" />
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold shadow-sm">Sim, Excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // ==========================================
+        // LÓGICA DO NOVO MODAL DE EXCLUIR CATEGORIA
+        // ==========================================
+        function abrirModalExcluirCategoria(nomeCategoria) {
+            document.getElementById('nomeCategoriaExcluirVisor').innerText = nomeCategoria;
+            document.getElementById('inputNomeCategoriaExcluir').value = nomeCategoria;
+            
+            var modal = new bootstrap.Modal(document.getElementById('modalExcluirCategoria'));
+            modal.show();
+        }
+
+        // ==========================================
+        // MEMÓRIA DAS ABAS 
+        // ==========================================
+        document.addEventListener("DOMContentLoaded", function() {
+            let activeTab = localStorage.getItem('activeAdminTab');
+            if (activeTab) {
+                let tabElement = document.querySelector('#adminTabs button[data-bs-target="' + activeTab + '"]');
+                if(tabElement) { new bootstrap.Tab(tabElement).show(); }
+            }
+            
+            document.querySelectorAll('#adminTabs button').forEach(btn => {
+                btn.addEventListener('shown.bs.tab', function (e) {
+                    localStorage.setItem('activeAdminTab', e.target.getAttribute('data-bs-target'));
+                });
+            });
+        });
+
+        // --- FUNÇÃO DE INGREDIENTES DO CARDÁPIO ---
+        function adicionarLinhaIngrediente() {
+            let container = document.getElementById("listaIngredientes");
+            let div = document.createElement("div");
+            div.className = "row g-2 mb-2 align-items-end ingrediente-row";
+            
+            div.innerHTML = `
+                <div class="col-7">
+                    <label class="small fw-bold text-muted">Nome (Ex: Cheddar)</label>
+                    <input type="text" name="IngredientesNomes" class="form-control bg-light border-0" required>
+                </div>
+                <div class="col-3">
+                    <label class="small fw-bold text-muted">Preço</label>
+                    <input type="text" name="IngredientesPrecos" class="form-control bg-light border-0" placeholder="4,50" required>
+                </div>
+                <div class="col-2">
+                    <button type="button" class="btn btn-light text-danger w-100" onclick="this.closest('.ingrediente-row').remove()"><i class="fas fa-trash"></i></button>
+                </div>
+            `;
+            container.appendChild(div);
+        }
+
+        // ==========================================
+        // LÓGICA DO CHAT (VERSÃO ADMIN)
+        // ==========================================
+        let chatAtualId = 0;
+
+        function abrirChatAdmin(id) {
+            chatAtualId = id;
+            document.getElementById('labelPedidoIdAdmin').innerText = id;
+            const container = document.getElementById('chatContainerAdmin');
+            container.innerHTML = '<div class="text-center small text-muted my-3">Carregando...</div>';
+            
+            new bootstrap.Modal(document.getElementById('chatModalAdmin')).show();
+
+            $.get("/Admin/ObterChatAdmin?pedidoId=" + id, function(res) {
+                if (res.success) {
+                    container.innerHTML = '<div class="text-center small text-muted my-3">Hoje</div>';
+                    if (res.mensagens && res.mensagens.length > 0) {
+                        res.mensagens.forEach(m => renderizarMensagemAdmin(m));
+                    }
+                    container.scrollTop = container.scrollHeight;
+                }
+            });
+        }
+
+        function renderizarMensagemAdmin(m) {
+            const container = document.getElementById('chatContainerAdmin');
+            
+            let iconStatus = '<i class="fas fa-check" style="color: #bbb;"></i>';
+            if (m.statusVisto === 'Entregue') iconStatus = '<i class="fas fa-check-double" style="color: #bbb;"></i>';
+            if (m.statusVisto === 'Visto') iconStatus = '<i class="fas fa-check-double text-info"></i>';
+
+            let isLoja = m.remetente === "Loja";
+            let html = "";
+
+            if (isLoja) {
+                html = `
+                <div class="d-flex flex-column align-items-end mb-3 text-end">
+                    <div class="text-white p-2 rounded-3 shadow-sm small text-start" style="max-width: 80%; background-color: #212529;">
+                        ${m.texto}
+                        <div class="d-flex justify-content-end align-items-center gap-1 mt-1" style="font-size: 0.65rem;">
+                            <span style="color: #adb5bd;">${m.dataHora}</span>
+                            ${iconStatus}
+                        </div>
+                    </div>
+                </div>`;
+            } else {
+                html = `
+                <div class="d-flex flex-column align-items-start mb-3">
+                    <div class="bg-white p-2 rounded-3 shadow-sm small" style="max-width: 80%; border-left: 3px solid #EA1D2C;">
+                        <strong class="d-block text-danger" style="font-size: 0.7rem;">Cliente</strong>
+                        ${m.texto}
+                        <div class="text-end text-muted mt-1" style="font-size: 0.65rem;">
+                            <span>${m.dataHora}</span>
+                        </div>
+                    </div>
+                </div>`;
+            }
+            container.innerHTML += html;
+        }
+
+        function enviarMensagemAdmin() {
+            const input = document.getElementById('chatInputAdmin');
+            let texto = input.value.trim();
+            
+            if (texto !== "") {
+                $.post("/Admin/EnviarMensagemLoja", { pedidoId: chatAtualId, texto: texto }, function(res) {
+                    if (res.success) {
+                        renderizarMensagemAdmin(res.mensagem);
+                        input.value = "";
+                        const container = document.getElementById('chatContainerAdmin');
+                        container.scrollTop = container.scrollHeight;
+                    }
+                });
+            }
+        }
+
+        document.getElementById('chatInputAdmin').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') enviarMensagemAdmin();
+        });
+
+        // ==========================================
+        // MOTOR DO DASHBOARD FINANCEIRO E RELATÓRIOS
+        // ==========================================
+        
+        // Pega todos os pedidos direto do C# e transforma em um objeto JS
+        var bancoPedidos = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.Pedidos ?? new List<ScarFood.Models.Pedido>()));
+
+        // Roda o relatório assim que a página carrega
+        document.addEventListener("DOMContentLoaded", function() {
+            let hoje = new Date();
+            document.getElementById('filtroMes').value = hoje.getMonth() + 1;
+            document.getElementById('filtroAno').value = hoje.getFullYear();
+            atualizarRelatorio();
+        });
+
+        function atualizarRelatorio() {
+            let tipo = document.getElementById('filtroTipo').value;
+            let mes = parseInt(document.getElementById('filtroMes').value);
+            let ano = parseInt(document.getElementById('filtroAno').value);
+
+            // Esconde os selects de mês e ano se não precisar deles
+            document.getElementById('filtroMes').style.display = (tipo === 'mensal') ? 'block' : 'none';
+            document.getElementById('filtroAno').style.display = (tipo === 'mensal' || tipo === 'anual') ? 'block' : 'none';
+
+            // ========================================================
+            // 0. FUNÇÕES TRADUTORAS (Resolve o conflito C# vs Navegador)
+            // ========================================================
+            function lerDataBR(dataStr) {
+                if (!dataStr) return new Date(0);
+                // Se já for padrão ISO (ex: 2026-05-11), lê direto
+                if (dataStr.includes('T') || dataStr.includes('-')) return new Date(dataStr); 
+                
+                // Transforma "11/05/2026 14:42" em Data real do JS
+                let partes = dataStr.split(' '); 
+                let pedacosData = partes[0].split('/');
+                if (pedacosData.length === 3) {
+                    // new Date(ano, mes (0 a 11), dia)
+                    return new Date(parseInt(pedacosData[2]), parseInt(pedacosData[1]) - 1, parseInt(pedacosData[0]));
+                }
+                return new Date(dataStr);
+            }
+
+            function lerDinheiroBR(valor) {
+                if (typeof valor === 'number') return valor;
+                if (!valor) return 0;
+                // Força "R$ 89,35" ou "89,35" a virar 89.35 puro para matemática
+                return parseFloat(valor.toString().replace('R$', '').replace(/\./g, '').replace(',', '.').trim()) || 0;
+            }
+
+            // ========================================================
+            // 1. Filtragem das Datas (Agora em Português)
+            // ========================================================
+            let pedidosFiltrados = bancoPedidos.filter(p => {
+                let status = (p.status || p.Status || "").toUpperCase();
+                if (status === 'CANCELADO') return false; 
+
+                let dataString = p.data || p.Data;
+                if (!dataString) return false;
+                
+                let dataPed = lerDataBR(dataString);
+                let hoje = new Date();
+
+                if (tipo === 'diario') {
+                    return dataPed.getDate() === hoje.getDate() && dataPed.getMonth() === hoje.getMonth() && dataPed.getFullYear() === hoje.getFullYear();
+                } else if (tipo === 'semanal') {
+                    let seteDiasAtras = new Date();
+                    seteDiasAtras.setDate(hoje.getDate() - 7);
+                    seteDiasAtras.setHours(0,0,0,0);
+                    return dataPed >= seteDiasAtras && dataPed <= hoje;
+                } else if (tipo === 'mensal') {
+                    return (dataPed.getMonth() + 1) === mes && dataPed.getFullYear() === ano;
+                } else if (tipo === 'anual') {
+                    return dataPed.getFullYear() === ano;
+                }
+                return true; // Filtro 'tudo'
+            });
+
+            // ========================================================
+            // 2. Cálculos e Agrupamentos (Matemática Pura)
+            // ========================================================
+            let faturamento = 0;
+            let itensVendidos = 0;
+            let mapaProdutos = {};
+            let mapaClientes = {};
+
+            pedidosFiltrados.forEach(p => {
+                let totalPedido = lerDinheiroBR(p.total || p.Total);
+                faturamento += totalPedido;
+                
+                let email = p.userEmail || p.UserEmail || "Desconhecido";
+                if (!mapaClientes[email]) mapaClientes[email] = { pedidos: 0, gasto: 0 };
+                mapaClientes[email].pedidos += 1;
+                mapaClientes[email].gasto += totalPedido;
+
+                let itens = p.itens || p.Itens || [];
+                itens.forEach(i => {
+                    let qty = parseInt(i.quantidade || i.Quantidade || 0);
+                    let nome = i.nome || i.Nome || "Produto";
+                    let precoTot = lerDinheiroBR(i.precoTotal || i.PrecoTotal);
+                    
+                    // Se o preço total do item não vier salvo, multiplica na hora
+                    if(precoTot === 0) {
+                        let precoUnit = lerDinheiroBR(i.precoUnitario || i.PrecoUnitario);
+                        precoTot = qty * precoUnit;
+                    }
+
+                    itensVendidos += qty;
+                    
+                    if (!mapaProdutos[nome]) mapaProdutos[nome] = { qty: 0, total: 0 };
+                    mapaProdutos[nome].qty += qty;
+                    mapaProdutos[nome].total += precoTot;
+                });
+            });
+
+            // Atualiza os Cards Superiores
+            let qtdPedidos = pedidosFiltrados.length;
+            let ticketMedio = qtdPedidos > 0 ? (faturamento / qtdPedidos) : 0;
+
+            document.getElementById('dashFaturamento').innerText = `R$ ${faturamento.toFixed(2).replace('.',',')}`;
+            document.getElementById('dashQtdPedidos').innerText = qtdPedidos;
+            document.getElementById('dashTicketMedio').innerText = `R$ ${ticketMedio.toFixed(2).replace('.',',')}`;
+            document.getElementById('dashItensVendidos').innerText = itensVendidos;
+
+            // ========================================================
+            // 3. Renderiza Top Produtos e Clientes
+            // ========================================================
+            let arrProdutos = Object.keys(mapaProdutos).map(k => ({ nome: k, qty: mapaProdutos[k].qty, total: mapaProdutos[k].total }));
+            arrProdutos.sort((a,b) => b.qty - a.qty); 
+            
+            let htmlProdutos = '';
+            arrProdutos.slice(0, 5).forEach(p => { 
+                htmlProdutos += `
+                    <tr>
+                        <td class="fw-bold">${p.nome}</td>
+                        <td class="text-center"><span class="badge bg-light text-dark border shadow-sm">${p.qty}</span></td>
+                        <td class="text-end text-success fw-bold">R$ ${p.total.toFixed(2).replace('.',',')}</td>
+                    </tr>`;
+            });
+            if(htmlProdutos === '') htmlProdutos = '<tr><td colspan="3" class="text-center text-muted py-4">Nenhuma venda neste período.</td></tr>';
+            document.getElementById('tabelaTopProdutos').innerHTML = htmlProdutos;
+
+            let arrClientes = Object.keys(mapaClientes).map(k => ({ email: k, pedidos: mapaClientes[k].pedidos, gasto: mapaClientes[k].gasto }));
+            arrClientes.sort((a,b) => b.gasto - a.gasto); 
+            
+            let htmlClientes = '';
+            arrClientes.slice(0, 5).forEach(c => { 
+                let nomeCli = c.email.split('@@')[0]; 
+                htmlClientes += `
+                    <tr>
+                        <td class="fw-bold text-truncate" style="max-width: 150px;" title="${c.email}">${nomeCli}</td>
+                        <td class="text-center"><span class="badge bg-light text-dark border shadow-sm">${c.pedidos}</span></td>
+                        <td class="text-end text-success fw-bold">R$ ${c.gasto.toFixed(2).replace('.',',')}</td>
+                    </tr>`;
+            });
+            if(htmlClientes === '') htmlClientes = '<tr><td colspan="3" class="text-center text-muted py-4">Nenhum pedido neste período.</td></tr>';
+            document.getElementById('tabelaTopClientes').innerHTML = htmlClientes;
+        }
+    </script>
+}

@@ -1,0 +1,364 @@
+@model List<ScarFood.Models.ItemCarrinho>
+
+<style>
+    .modal-header-scar { background-color: #EA1D2C; color: white; border-radius: 20px 20px 0 0; }
+    .text-scar { color: #EA1D2C; }
+    .bg-scar-light { background-color: #fff5f5; }
+    .ingredient-control { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+</style>
+
+<div class="row">
+    <div class="col-md-8">
+        <h5 class="fw-bold mb-3"><i class="fas fa-shopping-basket me-2 text-danger"></i>Seu Carrinho</h5>
+        
+        @foreach (var item in Model)
+        {
+            var index = Model.IndexOf(item);
+            <div class="card border-0 shadow-sm mb-3 p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="fw-bold mb-0">@item.Quantidade x @item.Nome</h6>
+                        @if (!string.IsNullOrWhiteSpace(item.Observacao))
+                        {
+                            <small class="text-muted">@item.Observacao</small>
+                        }
+                        <p class="text-danger fw-bold mb-0">R$ @item.PrecoTotal.ToString("F2")</p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-light text-muted btn-sm" onclick="abrirEdicao(@index, '@item.Nome', @item.Quantidade, '@item.Observacao', @item.PrecoUnitario.ToString("F2").Replace(",", "."))">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                        <a href="@Url.Action("Remover", "Carrinho", new { index = index })" class="btn btn-light text-danger btn-sm">
+                            <i class="fas fa-trash"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <div class="card border-0 shadow-sm p-4 mt-4">
+            <h6 class="fw-bold mb-3">Como deseja receber?</h6>
+            <div class="d-flex gap-3 mb-3">
+                <input type="radio" class="btn-check" name="tipoEntrega" id="delivery" value="delivery" checked onchange="atualizarInterfaceEntrega()">
+                <label class="btn btn-outline-danger w-100 fw-bold" for="delivery"><i class="fas fa-motorcycle me-2"></i>Delivery</label>
+
+                <input type="radio" class="btn-check" name="tipoEntrega" id="retirada" value="retirada" onchange="atualizarInterfaceEntrega()">
+                <label class="btn btn-outline-danger w-100 fw-bold" for="retirada"><i class="fas fa-store me-2"></i>Retirada</label>
+            </div>
+
+            <div id="secaoEndereco">
+                @if (ViewBag.EnderecosSalvos != null && ((List<ScarFood.Models.EnderecoUsuario>)ViewBag.EnderecosSalvos).Count > 0)
+                {
+                    <label class="small fw-bold text-muted mb-2">SEUS ENDEREÇOS SALVOS</label>
+                    <div class="d-flex gap-2 mb-3 overflow-auto pb-2">
+                        @foreach (var end in (List<ScarFood.Models.EnderecoUsuario>)ViewBag.EnderecosSalvos)
+                        {
+                            <div class="btn-group shadow-sm">
+                                <button class="btn btn-sm btn-outline-secondary text-start"
+                                        onclick="preencherEnderecoSalvo('@end.CEP', '@end.Logradouro', '@end.Numero', '@end.Bairro')">
+                                    <i class="fas fa-home me-1"></i> @end.Logradouro, @end.Numero
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="removerEndereco('@end.CEP', '@end.Numero')" title="Remover endereço">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <label class="small fw-bold text-muted mb-2">BUSCAR POR CEP</label>
+                <div class="input-group mb-3">
+                    <input type="text" id="cep" class="form-control border-0 bg-light" placeholder="00000-000" onblur="buscarCEP()">
+                    <span class="input-group-text border-0 bg-light"><i class="fas fa-search"></i></span>
+                </div>
+
+                <div class="row g-2">
+                    <div class="col-md-9"><input type="text" id="inputEndereco" class="form-control border-0 bg-light mb-2" placeholder="Rua..."></div>
+                    <div class="col-md-3"><input type="text" id="inputNumero" class="form-control border-0 bg-light mb-2" placeholder="Ex: 123" oninput="confirmarEnderecoAutomático()"></div>
+                    <div class="col-md-6"><input type="text" id="inputBairro" class="form-control border-0 bg-light mb-2" placeholder="Bairro"></div>
+                    <div class="col-md-6"><input type="text" id="inputComplemento" class="form-control border-0 bg-light mb-2" placeholder="Apto, bloco..."></div>
+                </div>
+
+                <div class="form-check form-switch bg-light p-3 rounded-3 mt-3">
+                    <input class="form-check-input ms-0 me-2" type="checkbox" id="chkSalvarEndereco" checked>
+                    <label class="form-check-label fw-bold">Salvar para próximos pedidos</label>
+                </div>
+            </div>
+
+            <h6 class="fw-bold mb-3 mt-4">Forma de Pagamento</h6>
+            <select class="form-select border-0 bg-light fw-bold" id="metodoPagamento">
+                <option>Pix</option>
+                <option>Cartão de Crédito (App)</option>
+                <option>Dinheiro (na entrega)</option>
+                <option>Cartão - Máquina (na entrega)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm p-4 sticky-top" style="top: 20px;">
+            <h5 class="fw-bold mb-4">Resumo do Pedido</h5>
+            <div class="d-flex justify-content-between mb-2"><span>Subtotal</span><span>R$ <span id="subtotalExibicao">@ViewBag.Subtotal.ToString("F2")</span></span></div>
+            <div class="d-flex justify-content-between mb-2 text-success fw-bold"><span>Taxa de Envio</span><span>R$ <span id="taxaEnvio">0,00</span></span></div>
+            <hr>
+            <div class="d-flex justify-content-between mb-4"><span class="h5 fw-bold">Total</span><span class="h5 fw-bold text-danger">R$ <span id="totalFinal">@ViewBag.Subtotal.ToString("F2")</span></span></div>
+            <div class="bg-light p-3 rounded-3 mb-4 text-center">
+                <small class="text-muted d-block">TEMPO ESTIMADO</small>
+                <strong id="tempoEstimado">-- min</strong>
+            </div>
+            <button class="btn btn-danger w-100 fw-bold py-3 shadow" onclick="processarFinalizacao()" style="background-color: #EA1D2C;">FINALIZAR PEDIDO</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalAvisoEndereco" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-body text-center p-5">
+                <i class="fas fa-map-marked-alt text-danger fs-1 mb-4"></i>
+                <h4 class="fw-bold">Quase lá!</h4>
+                <p class="text-muted">Preencha o endereço completo para calcularmos a entrega.</p>
+                <button type="button" class="btn btn-danger w-100 py-3 fw-bold rounded-pill" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalEditarItem" tabindex="-1" style="z-index: 2050;" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header border-0 modal-header-scar">
+                <h5 class="modal-title fw-bold" id="editItemNomeTitulo"></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="p-3 mb-4 bg-scar-light" style="border-radius: 12px; border-left: 5px solid #EA1D2C;">
+                    <h6 class="fw-bold mb-3 text-scar">Personalize seu pedido</h6>
+                    <div>
+                        <div class="ingredient-control">
+                            <div>
+                                <span class="fw-bold">Cheddar</span>
+                                <span class="text-danger fw-bold small ms-1">(+ R$ 4,50)</span>
+                                <small class="d-block text-muted mt-1" style="font-size: 0.8rem;">Abaixo de 1 remove do lanche</small>
+                            </div>
+                            <div class="d-flex align-items-center gap-3 bg-white p-2 rounded-pill shadow-sm">
+                                <button class="btn btn-sm btn-outline-danger border-0 fw-bold" onclick="updateEditIngredientQty('cheddar', -1)">-</button>
+                                <span id="edit-qty-cheddar" class="fw-bold text-dark">1</span>
+                                <button class="btn btn-sm btn-outline-danger border-0 fw-bold" onclick="updateEditIngredientQty('cheddar', 1)">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <label class="fw-bold small text-muted mb-2">ALGUMA OBSERVAÇÃO?</label>
+                    <textarea class="form-control border-0 bg-light" id="editItemObs" rows="3" placeholder="Ex: Tirar cebola..." style="border-radius: 10px;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-3 bg-light" style="border-radius: 0 0 20px 20px;">
+                <div class="w-100">
+                    <div class="d-flex justify-content-between align-items-center w-100 mb-3">
+                        <span class="text-muted small fw-bold">PREÇO FINAL</span>
+                        <div class="h4 text-scar fw-bold mb-0" id="modalTotal">R$ 0,00</div>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="d-flex align-items-center bg-white rounded-pill shadow-sm px-2 py-1" style="border: 1px solid #eee;">
+                            <button class="btn btn-link text-scar fw-bold p-0 px-3 text-decoration-none fs-4" onclick="updateProductQty(-1)">-</button>
+                            <span id="productQty" class="fw-bold text-dark mx-1" style="min-width: 25px; text-align: center;">1</span>
+                            <button class="btn btn-link text-scar fw-bold p-0 px-3 text-decoration-none fs-4" onclick="updateProductQty(1)">+</button>
+                        </div>
+
+                        <button class="btn btn-danger py-2 fw-bold rounded-pill shadow-sm flex-grow-1" 
+                                style="background-color:#EA1D2C; height: 48px;" 
+                                onclick="addToCart()">
+                            ADICIONAR
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const TAXA_FIXA = 7.00;
+        
+        let indexItemEdicao = -1;
+        let editItemBasePrice = 0;
+        let editItemQuantity = 1;
+        let editIngredients = { 'cheddar': { qty: 1, price: 4.50 } };
+
+        // --- LÓGICA DO MODAL DE EDIÇÃO ---
+        function abrirEdicao(index, nome, qtde, obs, precoUnitario) {
+            indexItemEdicao = index;
+            editItemQuantity = qtde;
+            editIngredients = { 'cheddar': { qty: 1, price: 4.50 } };
+            
+            let customObs = obs || "";
+            
+            // Verifica se o lanche tinha alterações no cheddar
+            if (customObs.includes("(REMOVER CHEDDAR)")) {
+                editIngredients.cheddar.qty = 0;
+                customObs = customObs.replace("(REMOVER CHEDDAR)", "").trim();
+            } else {
+                let match = customObs.match(/\(\+(\d+) Adicional de Cheddar\)/);
+                if (match) {
+                    editIngredients.cheddar.qty = 1 + parseInt(match[1]);
+                    customObs = customObs.replace(match[0], "").trim();
+                }
+            }
+            
+            let extractedExtras = 0;
+            if (editIngredients.cheddar.qty > 1) {
+                extractedExtras = (editIngredients.cheddar.qty - 1) * editIngredients.cheddar.price;
+            }
+            editItemBasePrice = parseFloat(precoUnitario) - extractedExtras;
+
+            document.getElementById('editItemNomeTitulo').innerText = nome;
+            document.getElementById('editItemQtde').innerText = editItemQuantity;
+            document.getElementById('editItemObs').value = customObs;
+            document.getElementById('edit-qty-cheddar').innerText = editIngredients.cheddar.qty;
+            
+            atualizarTotalEdicao();
+            new bootstrap.Modal(document.getElementById('modalEditarItem')).show();
+        }
+
+        function updateEditQty(change) {
+            editItemQuantity = Math.max(1, editItemQuantity + change);
+            document.getElementById('editItemQtde').innerText = editItemQuantity;
+            atualizarTotalEdicao();
+        }
+
+        function updateEditIngredientQty(ing, change) {
+            let item = editIngredients[ing];
+            item.qty = Math.max(0, item.qty + change);
+            document.getElementById(`edit-qty-${ing}`).innerText = item.qty;
+            atualizarTotalEdicao();
+        }
+
+        function atualizarTotalEdicao() {
+            let extras = 0;
+            if (editIngredients.cheddar.qty > 1) {
+                extras = (editIngredients.cheddar.qty - 1) * editIngredients.cheddar.price;
+            }
+            let total = (editItemBasePrice + extras) * editItemQuantity;
+            document.getElementById('editItemTotal').innerText = `R$ ${total.toFixed(2).replace('.', ',')}`;
+        }
+
+        function salvarEdicaoItem() {
+            let qtde = editItemQuantity;
+            let obsFinal = document.getElementById('editItemObs').value.trim();
+            
+            if (editIngredients.cheddar.qty === 0) obsFinal += " (REMOVER CHEDDAR)";
+            else if (editIngredients.cheddar.qty > 1) obsFinal += ` (+${editIngredients.cheddar.qty - 1} Adicional de Cheddar)`;
+            
+            let extras = 0;
+            if (editIngredients.cheddar.qty > 1) {
+                extras = (editIngredients.cheddar.qty - 1) * editIngredients.cheddar.price;
+            }
+            let precoFinal = (editItemBasePrice + extras) * qtde;
+
+            $.post("/Carrinho/EditarItemAjax", { 
+                index: indexItemEdicao, 
+                quantidade: qtde, 
+                observacao: obsFinal.trim(),
+                precoFinalStr: precoFinal.toFixed(2).replace('.', ',')
+            }, function(res) {
+                if(res.success) location.reload();
+            });
+        }
+        // ---------------------------------
+
+        function buscarCEP() {
+            let cep = document.getElementById('cep').value.replace(/\D/g, '');
+            if (cep.length !== 8) return;
+            fetch(`https://viacep.com.br/ws/${cep}/json/`)
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.erro) {
+                        document.getElementById('inputEndereco').value = data.logradouro;
+                        document.getElementById('inputBairro').value = data.bairro;
+                        document.getElementById('inputNumero').focus();
+                    }
+                });
+        }
+
+        function preencherEnderecoSalvo(cep, rua, num, bairro) {
+            document.getElementById('cep').value = cep;
+            document.getElementById('inputEndereco').value = rua;
+            document.getElementById('inputNumero').value = num;
+            document.getElementById('inputBairro').value = bairro;
+            confirmarEnderecoAutomático();
+        }
+
+        function removerEndereco(cep, numero) {
+            if (confirm("Tem certeza que deseja remover este endereço salvo?")) {
+                $.post("/Carrinho/RemoverEnderecoSalvo", { cep: cep, numero: numero }, function (res) {
+                    if (res.success) location.reload();
+                    else alert("Não foi possível remover o endereço.");
+                });
+            }
+        }
+
+        function confirmarEnderecoAutomático() {
+            if (document.getElementById('inputEndereco').value.length >= 3 && document.getElementById('inputNumero').value.length >= 1) {
+                atualizarInterfaceEntrega();
+            }
+        }
+
+        function atualizarInterfaceEntrega() {
+            let isDelivery = document.getElementById('delivery').checked;
+            let subtotal = parseFloat("@ViewBag.Subtotal".replace(',', '.'));
+            if (isDelivery) {
+                document.getElementById('secaoEndereco').style.display = 'block';
+                document.getElementById('taxaEnvio').innerText = TAXA_FIXA.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                document.getElementById('totalFinal').innerText = (subtotal + TAXA_FIXA).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                document.getElementById('tempoEstimado').innerText = "30 - 50 min";
+            } else {
+                document.getElementById('secaoEndereco').style.display = 'none';
+                document.getElementById('taxaEnvio').innerText = "0,00";
+                document.getElementById('totalFinal').innerText = subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                document.getElementById('tempoEstimado').innerText = "15 - 25 min";
+            }
+        }
+
+        function processarFinalizacao() {
+            let isDelivery = document.getElementById('delivery').checked;
+            if (isDelivery && (!document.getElementById('inputEndereco').value || !document.getElementById('inputNumero').value)) {
+                new bootstrap.Modal(document.getElementById('modalAvisoEndereco')).show();
+                return;
+            }
+
+            if (isDelivery && document.getElementById('chkSalvarEndereco').checked) {
+                $.post("/Carrinho/SalvarEnderecoNovo", {
+                    cep: document.getElementById('cep').value,
+                    logradouro: document.getElementById('inputEndereco').value,
+                    numero: document.getElementById('inputNumero').value,
+                    bairro: document.getElementById('inputBairro').value
+                });
+            }
+
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/Carrinho/FinalizarPedido';
+            const params = {
+                tipoEntrega: isDelivery ? 'Delivery' : 'Retirada',
+                pagamento: document.getElementById('metodoPagamento').value,
+                total: document.getElementById('totalFinal').innerText
+            };
+            for (const key in params) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = params[key];
+                form.appendChild(input);
+            }
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        window.onload = atualizarInterfaceEntrega;
+    </script>
+}

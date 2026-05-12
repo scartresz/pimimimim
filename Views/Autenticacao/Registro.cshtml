@@ -1,0 +1,54 @@
+@model ScarFood.Models.Usuario
+
+@{
+    ViewData["Title"] = "Cadastro";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-4 mt-5">
+        <div class="card shadow border-0" style="border-radius: 15px;">
+            <div class="card-body p-4">
+                <h2 class="card-title text-center fw-bold text-danger">Registro</h2>
+                <hr />
+
+                <form asp-action="Registro" method="post">
+                    @* Sumário de validação para erros de e-mail duplicado, etc *@
+                    <div asp-validation-summary="ModelOnly" class="text-danger small mb-3 text-center"></div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">NOME COMPLETO</label>
+                        <input asp-for="Nome" class="form-control border-0 bg-light" placeholder="Digite seu nome" required />
+                        <span asp-validation-for="Nome" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">E-MAIL</label>
+                        <input asp-for="Email" type="email" class="form-control border-0 bg-light" placeholder="email@exemplo.com" required />
+                        <span asp-validation-for="Email" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold small text-muted">SENHA</label>
+                        <input asp-for="Senha" type="password" class="form-control border-0 bg-light" placeholder="******" required />
+                        <span asp-validation-for="Senha" class="text-danger small"></span>
+                    </div>
+
+                    @* Botão alterado de Azul para Vermelho iFood *@
+                    <button type="submit" class="btn btn-danger w-100 fw-bold py-2 shadow-sm" style="background-color: #EA1D2C;">
+                        Criar Conta
+                    </button>
+                </form>
+
+                <p class="mt-4 text-center small text-muted">
+                    Já tem uma conta? <a href="/Autenticacao/Login" class="text-danger fw-bold text-decoration-none">Faça login</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @* Scripts essenciais para evitar erros de Token e validar campos em tempo real *@
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.5/jquery.validate.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validation-unobtrusive/3.2.13/jquery.validate.unobtrusive.min.js"></script>
+}

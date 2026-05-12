@@ -1,0 +1,171 @@
+@model List<ScarFood.Models.Pedido>
+
+@{
+    ViewData["Title"] = "Meus Pedidos";
+}
+
+<div class="container mt-4">
+    <h3 class="fw-bold mb-4">Histórico de Pedidos</h3>
+
+    @if (Model == null || Model.Count == 0)
+    {
+        <div class="text-center py-5">
+            <p class="text-muted">Nenhum pedido encontrado por enquanto.</p>
+            <a href="/" class="btn btn-danger btn-sm rounded-pill fw-bold">Ir para o Cardápio</a>
+        </div>
+    }
+    else
+    {
+        @foreach (var p in Model)
+        {
+            // MÁGICA DO NÚMERO DO PEDIDO: Como a lista está do mais novo pro mais velho,
+            // nós subtraímos a posição dele do total. Assim o primeiro pedido dele sempre será #1!
+            int numeroDoPedidoDoCliente = Model.Count - Model.IndexOf(p);
+
+            string badgeColor = "bg-secondary";
+            string borderColor = "#ccc";
+            
+            if (p.Status == "AGUARDANDO") { badgeColor = "bg-warning text-dark"; borderColor = "#fd7e14"; }
+            else if (p.Status == "EM PREPARO") { badgeColor = "bg-success"; borderColor = "#28a745"; }
+            else if (p.Status == "SAIU PARA ENTREGA") { badgeColor = "bg-danger"; borderColor = "#dc3545"; }
+            else if (p.Status == "CONCLUIDO") { badgeColor = "bg-primary"; borderColor = "#0d6efd"; }
+
+            <div class="card border-0 shadow-sm mb-4" style="border-radius: 12px; border-left: 5px solid @borderColor !important;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                        <div>
+                            <span class="badge @badgeColor mb-2">@p.Status</span>
+                            <h6 class="fw-bold mb-0">Pedido #@numeroDoPedidoDoCliente - ScarFood</h6>
+                            <small class="text-muted">@p.Data • R$ @p.Total</small>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            @if (p.Status != "CONCLUIDO")
+                            {
+                                <button class="btn btn-outline-danger btn-sm fw-bold px-3 rounded-pill" onclick="abrirChat('@p.Id', '@numeroDoPedidoDoCliente')">
+                                    <i class="fas fa-comment-dots"></i> Chat com a Loja
+                                </button>
+                            }
+                            else
+                            {
+                                <form asp-action="RepetirPedido" asp-controller="Carrinho" method="post">
+                                    <input type="hidden" name="pedidoId" value="@p.Id" />
+                                    <button type="submit" class="btn btn-light btn-sm fw-bold text-danger shadow-sm border">
+                                        <i class="fas fa-redo"></i> Repetir Pedido
+                                    </button>
+                                </form>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<div class="modal fade" id="chatModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0" style="border-radius: 15px;">
+            <div class="modal-header text-white" style="background-color: #EA1D2C;">
+                <h6 class="modal-title fw-bold"><i class="fas fa-store me-2"></i>Atendimento ScarFood - Pedido #<span id="labelPedidoId"></span></h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light" id="chatContainer" style="height: 350px; overflow-y: auto;">
+            </div>
+            <div class="modal-footer p-2 bg-white border-0">
+                <div class="input-group">
+                    <input type="text" id="chatInput" class="form-control border-0 bg-light" placeholder="Envie sua mensagem...">
+                    <button class="btn btn-danger" style="background-color: #EA1D2C;" onclick="enviarMensagem()"><i class="fas fa-paper-plane"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        let chatAtualId = 0;
+
+        function abrirChat(idBanco, idCliente) {
+            chatAtualId = idBanco; // Guarda o ID verdadeiro pro C# conseguir achar a conversa
+            document.getElementById('labelPedidoId').innerText = idCliente; // Mostra só o ID do cliente no topo do modal!
+            
+            const container = document.getElementById('chatContainer');
+            container.innerHTML = '<div class="text-center small text-muted my-3">Carregando mensagens...</div>';
+            new bootstrap.Modal(document.getElementById('chatModal')).show();
+
+            $.get("/Home/ObterChat?pedidoId=" + idBanco, function(res) {
+                if (res.success) {
+                    container.innerHTML = '<div class="text-center small text-muted my-3">Hoje</div>';
+                    let msgPadrao = `
+                        <div class="d-flex flex-column align-items-start mb-3">
+                            <div class="bg-white p-3 rounded-3 shadow-sm small" style="max-width: 80%;">
+                                Olá! Recebemos seu pedido. Ele já está sendo preparado pela nossa cozinha! 🍔
+                                <div class="text-end text-muted mt-1" style="font-size: 0.65rem;">Automático</div>
+                            </div>
+                        </div>`;
+                    container.innerHTML += msgPadrao;
+
+                    if (res.mensagens && res.mensagens.length > 0) {
+                        res.mensagens.forEach(m => renderizarMensagemNoHTML(m));
+                    }
+                    container.scrollTop = container.scrollHeight;
+                }
+            });
+        }
+
+        function renderizarMensagemNoHTML(m) {
+            const container = document.getElementById('chatContainer');
+            
+            let iconStatus = '<i class="fas fa-check" style="color: #ffcccc;"></i>';
+            if (m.statusVisto === 'Entregue') iconStatus = '<i class="fas fa-check-double" style="color: #ffcccc;"></i>';
+            if (m.statusVisto === 'Visto') iconStatus = '<i class="fas fa-check-double text-info"></i>';
+
+            let isCliente = m.remetente === "Cliente";
+            let html = "";
+
+            if (isCliente) {
+                html = `
+                <div class="d-flex flex-column align-items-end mb-3 text-end">
+                    <div class="text-white p-2 rounded-3 shadow-sm small text-start" style="max-width: 80%; background-color: #EA1D2C;">
+                        ${m.texto}
+                        <div class="d-flex justify-content-end align-items-center gap-1 mt-1" style="font-size: 0.65rem;">
+                            <span style="color: #ffd9db;">${m.dataHora}</span>
+                            ${iconStatus}
+                        </div>
+                    </div>
+                </div>`;
+            } else {
+                html = `
+                <div class="d-flex flex-column align-items-start mb-3">
+                    <div class="bg-white p-2 rounded-3 shadow-sm small" style="max-width: 80%; border-left: 3px solid #212529;">
+                        <strong class="d-block text-dark" style="font-size: 0.7rem;">ScarFood</strong>
+                        ${m.texto}
+                        <div class="text-end text-muted mt-1" style="font-size: 0.65rem;">
+                            <span>${m.dataHora}</span>
+                        </div>
+                    </div>
+                </div>`;
+            }
+            container.innerHTML += html;
+        }
+
+        function enviarMensagem() {
+            const input = document.getElementById('chatInput');
+            let textoDigitado = input.value.trim();
+            if (textoDigitado !== "") {
+                $.post("/Home/EnviarMensagemChat", { pedidoId: chatAtualId, texto: textoDigitado }, function(res) {
+                    if (res.success) {
+                        renderizarMensagemNoHTML(res.mensagem);
+                        input.value = "";
+                        document.getElementById('chatContainer').scrollTop = document.getElementById('chatContainer').scrollHeight;
+                    }
+                });
+            }
+        }
+
+        document.getElementById('chatInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') enviarMensagem();
+        });
+    </script>
+}

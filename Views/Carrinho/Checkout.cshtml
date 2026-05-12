@@ -1,0 +1,59 @@
+@{
+    ViewData["Title"] = "Finalizar Pedido";
+}
+
+<div class="row justify-content-center mt-4">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm p-4" style="border-radius: 15px;">
+            <h4 class="fw-bold text-danger mb-4">Finalizar Pedido</h4>
+            
+            <form asp-action="FinalizarPedido" method="post">
+                <h6 class="fw-bold small mb-3">TIPO DE ENTREGA</h6>
+                <div class="btn-group w-100 mb-4" role="group">
+                    <input type="radio" class="btn-check" name="tipoEntrega" id="entrega" value="entrega" checked onclick="$('#sectionEndereco').show()">
+                    <label class="btn btn-outline-danger" for="entrega">Entrega</label>
+                    
+                    <input type="radio" class="btn-check" name="tipoEntrega" id="retirada" value="retirada" onclick="$('#sectionEndereco').hide()">
+                    <label class="btn btn-outline-danger" for="retirada">Retirada</label>
+                </div>
+
+                <div id="sectionEndereco">
+                    <h6 class="fw-bold small mb-3">ENDEREÇO</h6>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <input type="text" name="cep" id="cep" class="form-control" placeholder="CEP" onblur="buscarCep(this.value)">
+                        </div>
+                        <div class="col-md-8">
+                            <input type="text" name="endereco" id="logradouro" class="form-control" placeholder="Rua, Avenida...">
+                        </div>
+                        <div class="col-md-12 mt-2">
+                            <input type="text" name="nomeCliente" class="form-control" value="@Context.Session.GetString("UserNome")" placeholder="Nome de quem recebe">
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="fw-bold small mb-3 mt-4">FORMA DE PAGAMENTO</h6>
+                <select name="pagamento" class="form-select mb-4">
+                    <option value="pix">PIX</option>
+                    <option value="cartao">Cartão de Crédito/Débito</option>
+                    <option value="dinheiro">Dinheiro</option>
+                </select>
+
+                <button type="submit" class="btn btn-danger w-100 fw-bold py-3" style="background-color: #EA1D2C;">PEDIDO FEITO</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function buscarCep(valor) {
+        let cep = valor.replace(/\D/g, '');
+        if (cep != "") {
+            $.getJSON("https://viacep.com.br/ws/"+ cep +"/json/", function(dados) {
+                if (!("erro" in dados)) {
+                    document.getElementById('logradouro').value = dados.logradouro + ", " + dados.bairro + " - " + dados.localidade;
+                }
+            });
+        }
+    }
+</script>

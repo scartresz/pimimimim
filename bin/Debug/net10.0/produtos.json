@@ -1,0 +1,65 @@
+[
+  {
+    "Id": 1,
+    "Nome": "Cheddar Bacon",
+    "Descricao": "Hamb\u00FArguer artesanal",
+    "Preco": 10,
+    "Categoria": "Pizza",
+    "FotoUrl": "/img/c883aa5c-4058-49d6-9042-4cedf51ab66c_cereja.jpeg",
+    "Vendas": 0,
+    "Extras": [
+      {
+        "Nome": "cheddar",
+        "Preco": 4.50
+      },
+      {
+        "Nome": "Bacon",
+        "Preco": 4.50
+      }
+    ]
+  },
+  {
+    "Id": 2,
+    "Nome": "Cl\u00E1ssico Scar",
+    "Descricao": "Tradicional p\u00E3o e carne",
+    "Preco": 24.00,
+    "Categoria": "Lanche",
+    "FotoUrl": "https://images.unsplash.com/photo-1571091718767-18b5b1457add?q=80\u0026w=500",
+    "Vendas": 80,
+    "Extras": []
+  },
+  {
+    "Id": 3,
+    "Nome": "Cachorro",
+    "Descricao": "Pastor Alem\u00E3o",
+    "Preco": 19.45,
+    "Categoria": "Bebida",
+    "FotoUrl": "/img/c994c11c-0337-4cf6-a1e5-ead5ffbfc981_perfil.jfif",
+    "Vendas": 0,
+    "Extras": [
+      {
+        "Nome": "Bacon",
+        "Preco": 4.50
+      },
+      {
+        "Nome": "Alface",
+        "Preco": 5.50
+      }
+    ]
+  },
+  {
+    "Id": 4,
+    "Nome": "potatomanki",
+    "Descricao": "mnakibptoata",
+    "Preco": 38.90,
+    "Categoria": "Lanche",
+    "FotoUrl": "/img/5d1ccfe0-5437-46be-bbf6-ed2b38de8b3f_download (1).png",
+    "Vendas": 0,
+    "Extras": [
+      {
+        "Nome": "cheddar",
+        "Preco": 4.50
+      }
+    ]
+  }
+]
