@@ -101,11 +101,6 @@ C:\ScarFood\obj\Debug\net10.0\ScarFood.genruntimeconfig.cache
 C:\ScarFood\obj\Debug\net10.0\ref\ScarFood.dll
 C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\appsettings.Development.json
 C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\appsettings.json
-C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\categorias.json
-C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\enderecos_usuarios.json
-C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\pedidos.json
-C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\produtos.json
-C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\usuarios.json
 C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\ScarFood.staticwebassets.runtime.json
 C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\ScarFood.staticwebassets.endpoints.json
 C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\ScarFood.exe
@@ -202,3 +197,11 @@ C:\Users\PC\Downloads\ScarFood\obj\Debug\net10.0\refint\ScarFood.dll
 C:\Users\PC\Downloads\ScarFood\obj\Debug\net10.0\ScarFood.pdb
 C:\Users\PC\Downloads\ScarFood\obj\Debug\net10.0\ScarFood.genruntimeconfig.cache
 C:\Users\PC\Downloads\ScarFood\obj\Debug\net10.0\ref\ScarFood.dll
+C:\Users\PC\Downloads\ScarFood\obj\Debug\net10.0\ScarFood.csproj.AssemblyReference.cache
+C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\DnsClient.dll
+C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\MongoDB.Bson.dll
+C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\MongoDB.Driver.dll
+C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\SharpCompress.dll
+C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\Snappier.dll
+C:\Users\PC\Downloads\ScarFood\bin\Debug\net10.0\ZstdSharp.dll
+C:\Users\PC\Downloads\ScarFood\obj\Debug\net10.0\ScarFood.csproj.Up2Date

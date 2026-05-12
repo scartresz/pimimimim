@@ -12,33 +12,21 @@
         .Distinct()
         .ToList();
 
-    // 2. Lê a ordem direto do arquivo (à prova de falhas)
+    // 2. Lê a ordem direto do banco NoSQL através da ViewBag enviada pelo HomeController
     var categoriasFinais = new List<string>();
-    var caminhoCats = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "categorias.json");
+    var categoriasOrdenadas = (ViewBag.Categorias as List<ScarFood.Models.CategoriaItem>)?.Select(c => c.Nome.Trim()).ToList() ?? new List<string>();
 
-    if (System.IO.File.Exists(caminhoCats))
+    if (categoriasOrdenadas.Any())
     {
-        try 
+        foreach(var nomeAdmin in categoriasOrdenadas)
         {
-            var jsonCats = System.IO.File.ReadAllText(caminhoCats);
-            var configAdmin = System.Text.Json.JsonSerializer.Deserialize<List<ScarFood.Models.CategoriaItem>>(jsonCats, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            
-            if (configAdmin != null)
+            var matchProduto = categoriasDosProdutos.FirstOrDefault(c => c.Equals(nomeAdmin, System.StringComparison.OrdinalIgnoreCase));
+            if (matchProduto != null)
             {
-                var ordemAdmin = configAdmin.OrderBy(c => c.Ordem).Select(c => c.Nome.Trim()).ToList();
-                
-                foreach(var nomeAdmin in ordemAdmin)
-                {
-                    var matchProduto = categoriasDosProdutos.FirstOrDefault(c => c.Equals(nomeAdmin, System.StringComparison.OrdinalIgnoreCase));
-                    if (matchProduto != null)
-                    {
-                        categoriasFinais.Add(matchProduto);
-                        categoriasDosProdutos.Remove(matchProduto); 
-                    }
-                }
+                categoriasFinais.Add(matchProduto);
+                categoriasDosProdutos.Remove(matchProduto); 
             }
-        } 
-        catch { }
+        }
     }
 
     // 3. Joga pro final qualquer categoria que tenha ficado de fora da organização do Admin
@@ -48,30 +36,41 @@
 <style>
 
     .category-section { padding-top: 100px; margin-top: -100px; }
-    .product-card { transition: transform 0.2s; cursor: pointer; border-radius: 15px; overflow: hidden; border: none; }
-    .product-card:hover { transform: scale(1.02); box-shadow: 0 10px 20px rgba(234, 29, 44, 0.1) !important; }
-    .categories-bar { padding: 5px 0; margin-bottom: 20px; }
-    .ingredient-control { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+    .product-card { transition: transform 0.2s;
+    cursor: pointer; border-radius: 15px; overflow: hidden; border: none; }
+    .product-card:hover { transform: scale(1.02);
+    box-shadow: 0 10px 20px rgba(234, 29, 44, 0.1) !important; }
+    .categories-bar { padding: 5px 0; margin-bottom: 20px;
+    }
+    .ingredient-control { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;
+    }
     .btn-outline-danger { border-color: #EA1D2C; color: #EA1D2C; }
-    .btn-outline-danger:hover { background-color: #EA1D2C; border-color: #EA1D2C; color: white; }
-    .modal-header-scar { background-color: #EA1D2C; color: white; border-radius: 20px 20px 0 0; }
+    .btn-outline-danger:hover { background-color: #EA1D2C; border-color: #EA1D2C;
+    color: white; }
+    .modal-header-scar { background-color: #EA1D2C; color: white; border-radius: 20px 20px 0 0;
+    }
     .text-scar { color: #EA1D2C; }
-    .bg-scar-light { background-color: #fff5f5; }
+    .bg-scar-light { background-color: #fff5f5;
+    }
 
     #carrinhoLateral {
-        position: fixed; top: 0; right: -100%; width: 100%; max-width: 380px; height: 100vh;
+        position: fixed; top: 0; right: -100%;
+        width: 100%; max-width: 380px; height: 100vh;
         z-index: 2000; transition: 0.3s; box-shadow: -5px 0 15px rgba(0,0,0,0.1);
         display: flex; flex-direction: column;
     }
     #carrinhoLateral.active { right: 0; }
     #overlayCarrinho {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0,0,0,0.5); z-index: 1999; display: none;
     }
-    .cart-item { border-bottom: 1px solid #eee; padding: 10px 0; }
+    .cart-item { border-bottom: 1px solid #eee; padding: 10px 0;
+    }
     
     /* Regra extra para as linhas do carrinho no Modo Escuro */
-    body.dark-mode .cart-item { border-bottom: 1px solid #495057 !important; }
+    body.dark-mode .cart-item { border-bottom: 1px solid #495057 !important;
+    }
 </style>
 
 <div id="overlayCarrinho" onclick="fecharCarrinho()" style="display: none;"></div>
@@ -84,6 +83,7 @@
     <div class="p-3 border-top bg-light">
         <div class="d-flex justify-content-between h5 fw-bold mb-3">
             <span>Subtotal</span>
+            
             <span id="totalLateral" class="text-danger">R$ 0,00</span>
         </div>
         <button class="btn btn-danger w-100 py-3 fw-bold rounded-pill shadow" onclick="window.location.href='/Carrinho/Index'">
@@ -99,6 +99,7 @@
         <input type="text" id="searchInput" class="form-control form-control-lg" placeholder="Pesquisar lanche, pizza..." aria-label="Pesquisar produtos no cardápio">
     </div>
     <div class="col-md-6 d-flex gap-2">
+      
         <select id="priceFilter" class="form-select form-select-lg" onchange="filterProducts()" aria-label="Filtro de ordenação de preços">
             <option value="none">Ordenar por...</option>
             <option value="low">Menor Preço</option>
@@ -123,32 +124,37 @@
 <div id="catalog">
     @foreach (var catNome in categoriasFinais)
     {
+ 
         var produtosDaCategoria = Model.Where(x => x.Categoria.Equals(catNome, System.StringComparison.OrdinalIgnoreCase)).ToList();
-        
         if (produtosDaCategoria.Count > 0)
         {
             <h2 id="cat-@catNome.Replace(" ", "")" class="category-section mb-3 fw-bold">@catNome</h2>
             <div class="row row-cols-1 row-cols-md-3 g-4 mb-5 container-produtos">
                 @foreach (var p in produtosDaCategoria) 
                 {
+                
                     var extrasJson = System.Text.Json.JsonSerializer.Serialize(p.Extras ?? new List<ScarFood.Models.IngredienteExtra>());
-
                     <div class="col product-item" data-name="@p.Nome" data-price="@p.Preco" data-sales="@p.Vendas">
                         <div class="card h-100 product-card shadow-sm" tabindex="0" role="button" aria-label="Ver detalhes de @p.Nome"
                              data-id="@p.Id" 
                              data-nome="@p.Nome" 
+ 
                              data-preco="@p.Preco" 
                              data-desc="@p.Descricao" 
                              data-extras="@extrasJson"
+            
                              onclick="clicarProduto(this)"
                              onkeypress="if(event.key === 'Enter') clicarProduto(this)">
                              
+                      
                             <img src="@p.FotoUrl" class="card-img-top" alt="Foto do produto @p.Nome" style="height: 200px; object-fit: cover;">
                             <div class="card-body">
                                 <h3 class="card-title h5 fw-bold">@p.Nome</h3>
+                    
                                 <p class="card-text text-muted small">@p.Descricao</p>
                                 <h6 class="text-success fw-bold">R$ @p.Preco.ToString("F2")</h6>
                             </div>
+                      
                         </div>
                     </div>
                 }
@@ -166,20 +172,24 @@
             </div>
             <div class="modal-body p-4">
                 <p id="modalDescricao" class="text-muted small mb-4"></p>
+           
                 <div id="secaoPersonalizar" class="p-3 mb-4 bg-scar-light" style="border-radius: 12px; border-left: 5px solid #EA1D2C; display: none;">
                     <h3 class="h6 fw-bold mb-3 text-scar">Personalize seu pedido</h3>
                     <div id="modalIngredientes"></div>
                 </div>
                 <div class="mt-4">
+                   
                     <label for="observacao" class="fw-bold small text-muted mb-2">ALGUMA OBSERVAÇÃO?</label>
                     <textarea class="form-control border-0 bg-light" id="observacao" rows="2" placeholder="Ex: Tirar cebola..." style="border-radius: 10px;"></textarea>
                 </div>
             </div>
             <div class="modal-footer border-0 p-3 bg-light" style="border-radius: 0 0 20px 20px;">
+              
                 <div class="d-flex flex-wrap w-100 gap-2">
                     <div class="d-flex justify-content-between align-items-center w-100 mb-1">
                         <span class="text-muted small fw-bold">PREÇO FINAL</span>
                         <div class="h4 text-scar fw-bold mb-0" id="modalTotal" aria-live="polite">R$ 0,00</div>
+          
                     </div>
                     <div class="d-flex justify-content-between align-items-center w-100 gap-2">
                         <div class="d-flex align-items-center bg-white rounded-pill shadow-sm px-2 py-1 border">
@@ -188,11 +198,13 @@
                             <button class="btn btn-link text-scar fw-bold p-0 px-3 text-decoration-none fs-5" onclick="updateProductQty(1)" aria-label="Aumentar quantidade">+</button>
                         </div>
                         <button class="btn btn-danger py-2 fw-bold rounded-pill shadow-sm flex-grow-1" style="background-color:#EA1D2C" onclick="addToCart()">
+  
                             ADICIONAR
                         </button>
                     </div>
                 </div>
             </div>
+  
         </div>
     </div>
 </div>
@@ -203,11 +215,13 @@
             <div class="modal-header border-0 bg-light justify-content-center pt-4">
                 <div class="rounded-circle bg-scar-light p-3">
                     <i class="fas fa-user-lock text-danger fs-1" aria-hidden="true"></i>
+     
                 </div>
             </div>
             <div class="modal-body text-center p-4">
                 <h2 class="h4 fw-bold text-dark">Quase lá!</h2>
                 <p class="text-muted">Para adicionar itens ao seu carrinho e saborear nossos lanches, você precisa estar conectado.</p>
+            
             </div>
             <div class="modal-footer border-0 p-4 pt-0 d-flex flex-column gap-2">
                 <a href="/Autenticacao/Login" class="btn btn-danger w-100 py-3 fw-bold rounded-pill shadow-sm" style="background-color: #EA1D2C;">ENTRAR NA MINHA CONTA</a>
@@ -223,6 +237,7 @@
         <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
             <div class="modal-header border-0 modal-header-scar">
                 <h2 class="modal-title h5 fw-bold" id="editItemNomeTitulo"></h2>
+              
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar janela"></button>
             </div>
             <div class="modal-body p-4">
@@ -231,15 +246,18 @@
                     <div id="modalIngredientesEdit"></div>
                 </div>
                 <div class="mt-4">
+               
                     <label for="editItemObs" class="fw-bold small text-muted mb-2">ALGUMA OBSERVAÇÃO?</label>
                     <textarea class="form-control border-0 bg-light" id="editItemObs" rows="3" placeholder="Ex: Tirar cebola..." style="border-radius: 10px;"></textarea>
                 </div>
             </div>
             <div class="modal-footer border-0 p-3 bg-light" style="border-radius: 0 0 20px 20px;">
+          
                 <div class="d-flex flex-wrap w-100 gap-2">
                     <div class="d-flex justify-content-between align-items-center w-100 mb-1">
                         <span class="text-muted small fw-bold">PREÇO TOTAL</span>
                         <div class="h4 text-scar fw-bold mb-0" id="editItemTotal" aria-live="polite">R$ 0,00</div>
+      
                     </div>
                     <div class="d-flex justify-content-between align-items-center w-100 gap-2">
                         <div class="d-flex align-items-center bg-white rounded-pill shadow-sm px-2 py-1 border">
@@ -248,11 +266,13 @@
                             <button class="btn btn-link text-scar fw-bold p-0 px-3 text-decoration-none fs-5" onclick="updateEditQty(1)" aria-label="Aumentar quantidade">+</button>
                         </div>
                         <button class="btn btn-danger py-2 fw-bold rounded-pill shadow-sm flex-grow-1" style="background-color:#EA1D2C" onclick="salvarEdicaoItem()">
+  
                             SALVAR
                         </button>
                     </div>
                 </div>
             </div>
+  
         </div>
     </div>
 </div>
@@ -265,25 +285,25 @@
 
     function filterProducts() {
         let criteria = document.getElementById('priceFilter').value;
-        
         if (criteria === 'none') {
             window.location.reload();
             return;
         }
 
         let containers = Array.from(document.querySelectorAll('.container-produtos'));
-        
         containers.forEach(container => {
             let items = Array.from(container.querySelectorAll('.product-item'));
             items.sort((a, b) => {
                 let priceA = parseFloat(a.dataset.price.replace(',', '.'));
                 let priceB = parseFloat(b.dataset.price.replace(',', '.'));
                 let salesA = parseInt(a.dataset.sales || '0');
+       
                 let salesB = parseInt(b.dataset.sales || '0');
                 
                 if (criteria === 'low') return priceA - priceB;
                 if (criteria === 'high') return priceB - priceA;
                 if (criteria === 'popular') return salesB - salesA;
+ 
                 return 0;
             });
             
@@ -301,6 +321,7 @@
             item.style.display = name.includes(term) ? "" : "none";
         });
 
+  
         document.querySelectorAll('.category-section').forEach(catTitle => {
             let container = catTitle.nextElementSibling;
             let items = Array.from(container.querySelectorAll('.product-item'));
@@ -333,7 +354,6 @@
         let modalIngredientesDiv = document.getElementById('modalIngredientes');
         let secaoPersonalizar = document.getElementById('secaoPersonalizar');
         modalIngredientesDiv.innerHTML = "";
-
         let extras = JSON.parse(extrasJson || "[]");
         if (extras.length > 0) {
             secaoPersonalizar.style.display = "block";
@@ -343,10 +363,12 @@
                 ingredients[safeName] = { nomeReal: ex.Nome, qty: 1, price: ex.Preco }; 
                 html += `
                 <div class="ingredient-control">
+           
                     <div>
                         <span class="fw-bold">${ex.Nome}</span>
                         <span class="text-danger fw-bold small ms-1">(+ R$ ${ex.Preco.toFixed(2).replace('.',',')})</span>
                     </div>
+                
                     <div class="d-flex align-items-center gap-3 bg-white p-2 rounded-pill shadow-sm">
                         <button class="btn btn-sm btn-outline-danger border-0 fw-bold" onclick="updateQty('${safeName}', -1)" aria-label="Remover ${ex.Nome}">-</button>
                         <span id="qty-${safeName}" class="fw-bold text-dark" aria-live="polite">1</span>
@@ -391,7 +413,8 @@
     function abrirCarrinho() {
         const sidebar = document.getElementById('carrinhoLateral');
         const overlay = document.getElementById('overlayCarrinho');
-        if (sidebar && overlay) { sidebar.classList.add('active'); overlay.style.display = "block"; atualizarItensLateral(); }
+        if (sidebar && overlay) { sidebar.classList.add('active'); overlay.style.display = "block"; atualizarItensLateral();
+        }
     }
 
     function fecharCarrinho() {
@@ -408,10 +431,12 @@
             let itens = response.itens || [];
 
             if (itens.length > 0) {
-                itens.forEach((item, index) => {
+                itens.forEach((item, index) => 
+                {
                     let obsLimpa = (item.observacao && item.observacao !== "null") ? item.observacao : "";
                     html += `
                     <div class="cart-item border-bottom mb-2 pb-2">
+                       
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
                                 <span class="fw-bold small">${item.quantidade}x ${item.nome}</span>
@@ -419,11 +444,14 @@
                                 <span class="text-danger fw-bold small">R$ ${item.precoTotal.toFixed(2).replace('.',',')}</span>
                             </div>
                             <div class="d-flex flex-column gap-1">
+   
                                 <button class="btn btn-sm text-muted p-0" onclick="abrirEdicao(${index}, '${item.nome}', ${item.quantidade}, '${obsLimpa}', ${item.precoUnitario})" aria-label="Editar item ${item.nome}">
                                     <i class="fas fa-pen" aria-hidden="true"></i>
+                    
                                 </button>
                                 <button class="btn btn-sm text-danger p-0" onclick="removerItemAjax(${index})" aria-label="Remover item ${item.nome} do carrinho">
                                     <i class="fas fa-trash-alt" aria-hidden="true"></i>
+       
                                 </button>
                             </div>
                         </div>
@@ -442,7 +470,8 @@
     }
 
     function abrirEdicao(index, nome, qtde, obs, precoUnitario) {
-        indexItemEdicao = index; editItemQuantity = qtde; editItemBasePrice = parseFloat(precoUnitario); editIngredients = {}; 
+        indexItemEdicao = index;
+        editItemQuantity = qtde; editItemBasePrice = parseFloat(precoUnitario); editIngredients = {}; 
         let customObs = obs || "";
         let cardapioItems = Array.from(document.querySelectorAll('.product-item'));
         let meuLanche = cardapioItems.find(i => normalizar(i.dataset.name) === normalizar(nome));
@@ -450,7 +479,6 @@
         let secaoPersonalizarEdit = document.getElementById('secaoPersonalizarEdit');
         let divIngredientesEdit = document.getElementById('modalIngredientesEdit');
         divIngredientesEdit.innerHTML = "";
-        
         if(meuLanche) {
             let extras = JSON.parse(meuLanche.querySelector('.card').getAttribute('data-extras') || "[]");
             if (extras.length > 0) {
@@ -461,22 +489,26 @@
                     let safeName = "ing_" + idx; let qtyAtual = 1; 
                     let regexRemover = new RegExp(`\\(REMOVER ${ex.Nome.toUpperCase()}\\)`);
                     let regexAdicional = new RegExp(`\\(\\+(\\d+) Adicional de ${ex.Nome}\\)`);
-                    
+       
                     if (regexRemover.test(customObs)) {
                         qtyAtual = 0; customObs = customObs.replace(regexRemover, "").trim();
                     } else {
+             
                         let matchExtra = customObs.match(regexAdicional);
                         if (matchExtra) {
                             qtyAtual = 1 + parseInt(matchExtra[1]);
+                            
                             customObs = customObs.replace(matchExtra[0], "").trim();
                             extractedExtrasValue += (qtyAtual - 1) * ex.Preco; 
                         }
                     }
+                  
                     editIngredients[safeName] = { nomeReal: ex.Nome, qty: qtyAtual, price: ex.Preco };
                     html += `
                     <div class="ingredient-control">
                         <div>
                             <span class="fw-bold">${ex.Nome}</span>
+                        
                             <span class="text-danger fw-bold small ms-1">(+ R$ ${ex.Preco.toFixed(2).replace('.',',')})</span>
                         </div>
                         <div class="d-flex align-items-center gap-3 bg-white p-2 rounded-pill shadow-sm">
@@ -484,12 +516,15 @@
                             <span id="edit-qty-${safeName}" class="fw-bold text-dark" aria-live="polite">${qtyAtual}</span>
                             <button class="btn btn-sm btn-outline-danger border-0 fw-bold" onclick="updateEditIngredientQty('${safeName}', 1)" aria-label="Adicionar ${ex.Nome}">+</button>
                         </div>
+     
                     </div>`;
                 });
                 divIngredientesEdit.innerHTML = html;
                 editItemBasePrice = parseFloat(precoUnitario) - extractedExtrasValue;
-            } else { secaoPersonalizarEdit.style.display = "none"; }
-        } else { secaoPersonalizarEdit.style.display = "none"; }
+            } else { secaoPersonalizarEdit.style.display = "none";
+            }
+        } else { secaoPersonalizarEdit.style.display = "none";
+        }
 
         document.getElementById('editItemNomeTitulo').innerText = nome;
         document.getElementById('editItemQtde').innerText = editItemQuantity;
@@ -533,7 +568,6 @@
         }
         
         let precoFinal = (editItemBasePrice + extrasPrecoTotal) * editItemQuantity;
-
         $.post("/Carrinho/EditarItemAjax", { 
             index: indexItemEdicao, quantidade: editItemQuantity, observacao: obsFinal.trim(), precoFinalStr: precoFinal.toFixed(2).replace('.', ',')
         }, function(res) {
@@ -553,15 +587,16 @@
         }
 
         let precoFinal = (currentBasePrice + extraTotal) * productQuantity;
-
         $.post("/Carrinho/Adicionar", {
-            id: parseInt(currentProductId), nome: document.getElementById('modalNome').innerText,
+            id: currentProductId, // <-- REMOVIDO O PARSEINT
+            nome: document.getElementById('modalNome').innerText,
             preco: precoFinal.toFixed(2).replace('.', ','), quantidade: productQuantity, observacao: obsFinal.trim()
         }, function(res) {
             if(res.success) {
                 bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
                 abrirCarrinho();
-            } else {
+           
+             } else {
                 bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
                 new bootstrap.Modal(document.getElementById('loginPromptModal')).show();
             }

@@ -5,7 +5,7 @@ builder.Services.AddControllersWithViews();
 
 // --- CONFIGURAÇÃO DA SESSÃO ATUALIZADA ---
 // Necessário para que a sessão tenha um local para armazenar os dados temporários
-builder.Services.AddDistributedMemoryCache(); 
+builder.Services.AddDistributedMemoryCache();
 
 builder.Services.AddSession(options =>
 {
@@ -16,6 +16,13 @@ builder.Services.AddSession(options =>
 
 builder.Services.AddHttpContextAccessor();
 
+// Lê as configurações do banco NoSQL
+builder.Services.Configure<ScarFood.Models.DatabaseSettings>(
+    builder.Configuration.GetSection("DatabaseSettings"));
+
+// ADICIONADO: Registra o serviço do MongoDB para o sistema inteiro poder usar
+builder.Services.AddSingleton<ScarFood.Services.DatabaseService>();
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
@@ -24,7 +31,9 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// PIM: LINHA COMENTADA PARA EVITAR ERRO DE REDIRECIONAMENTO NO NGROK
+// app.UseHttpsRedirection();
+
 app.UseStaticFiles();
 
 app.UseRouting();

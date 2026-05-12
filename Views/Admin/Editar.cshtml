@@ -39,10 +39,13 @@
                             <div class="col-6 mb-3">
                                 <label class="form-label fw-bold small text-muted">Categoria</label>
                                 <select asp-for="Categoria" class="form-select bg-light border-0">
-                                    <option value="Lanche">Lanche</option>
-                                    <option value="Pizza">Pizza</option>
-                                    <option value="Bebida">Bebida</option>
-                                    <option value="Sobremesa">Sobremesa</option>
+                                    @if (ViewBag.Categorias != null)
+                                    {
+                                        foreach (var cat in ViewBag.Categorias)
+                                        {
+                                            <option value="@cat.Nome">@cat.Nome</option>
+                                        }
+                                    }
                                 </select>
                             </div>
                         </div>
@@ -116,18 +119,18 @@
                     div.className = "row g-2 mb-2 align-items-end ingrediente-row";
             
                     div.innerHTML = `
-                            <div class="col-7">
-                                <label class="small fw-bold text-muted">Nome (Ex: Bacon)</label>
-                                <input type="text" name="IngredientesNomes" class="form-control bg-light border-0" required>
-                            </div>
-                            <div class="col-3">
-                                <label class="small fw-bold text-muted">Preço</label>
-                                <input type="text" name="IngredientesPrecos" class="form-control bg-light border-0" placeholder="0,00" required>
-                            </div>
-                            <div class="col-2">
-                                <button type="button" class="btn btn-light text-danger w-100" onclick="this.closest('.ingrediente-row').remove()"><i class="fas fa-trash"></i></button>
-                            </div>
-                        `;
+                                        <div class="col-7">
+                                            <label class="small fw-bold text-muted">Nome (Ex: Bacon)</label>
+                                            <input type="text" name="IngredientesNomes" class="form-control bg-light border-0" required>
+                                        </div>
+                                        <div class="col-3">
+                                            <label class="small fw-bold text-muted">Preço</label>
+                                            <input type="text" name="IngredientesPrecos" class="form-control bg-light border-0" placeholder="0,00" required>
+                                        </div>
+                                        <div class="col-2">
+                                            <button type="button" class="btn btn-light text-danger w-100" onclick="this.closest('.ingrediente-row').remove()"><i class="fas fa-trash"></i></button>
+                                        </div>
+                                    `;
                     container.appendChild(div);
                 }
             </script>

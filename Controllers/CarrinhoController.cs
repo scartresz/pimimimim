@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using ScarFood.Models;
+using ScarFood.Services; // ADICIONADO: Serviço do MongoDB
+using MongoDB.Driver;    // ADICIONADO: Driver do NoSQL
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Attributes;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using System.IO;
 using System.Globalization;
 using System;
 
@@ -12,7 +15,13 @@ namespace ScarFood.Controllers
 {
     public class CarrinhoController : Controller
     {
+        // ADICIONADO: Injeção do Banco de Dados NoSQL
+        private readonly DatabaseService _dbService;
 
+        public CarrinhoController(DatabaseService dbService)
+        {
+            _dbService = dbService;
+        }
 
         private List<ItemCarrinho> ObterCarrinhoDaSessao()
         {
@@ -42,7 +51,7 @@ namespace ScarFood.Controllers
 
         [HttpPost]
         [IgnoreAntiforgeryToken]
-        public IActionResult Adicionar(int id, string nome, string preco, int quantidade, string observacao)
+        public IActionResult Adicionar(string id, string nome, string preco, int quantidade, string observacao)
         {
             var email = HttpContext.Session.GetString("UserEmail");
             if (string.IsNullOrEmpty(email)) return Json(new { success = false, message = "Faça login primeiro" });
@@ -55,7 +64,6 @@ namespace ScarFood.Controllers
 
             var carrinho = ObterCarrinhoDaSessao();
 
-            // CORREÇÃO DO NULL: Se for vazio ou a palavra "null", vira texto limpo
             string obsLimpa = (string.IsNullOrWhiteSpace(observacao) || observacao.ToLower() == "null") ? "" : observacao;
 
             carrinho.Add(new ItemCarrinho
@@ -77,7 +85,6 @@ namespace ScarFood.Controllers
             });
         }
 
-        // NOVA FUNÇÃO: Para o botão do Lápis
         [HttpPost]
         [IgnoreAntiforgeryToken]
         public IActionResult EditarItemAjax(int index, int quantidade, string observacao, string precoFinalStr)
@@ -88,7 +95,6 @@ namespace ScarFood.Controllers
                 carrinho[index].Quantidade = quantidade > 0 ? quantidade : 1;
                 carrinho[index].Observacao = (string.IsNullOrWhiteSpace(observacao) || observacao == "null") ? "" : observacao;
 
-                // ADICIONADO: Se o preço mudou por causa de ingredientes extras, atualizamos o valor!
                 if (!string.IsNullOrEmpty(precoFinalStr))
                 {
                     if (decimal.TryParse(precoFinalStr.Replace(",", "."), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal precoConvertido))
@@ -110,28 +116,19 @@ namespace ScarFood.Controllers
             var email = HttpContext.Session.GetString("UserEmail");
             if (string.IsNullOrEmpty(email)) return Json(new { success = false });
 
-            var caminho = Path.Combine(Directory.GetCurrentDirectory(), "enderecos_usuarios.json");
-            if (System.IO.File.Exists(caminho))
+            var safeCep = cep?.Replace("-", "").Trim() ?? "";
+            var safeNum = numero?.Trim() ?? "";
+
+            var resultado = _dbService.Enderecos.DeleteOne(e =>
+                e.UserEmail == email &&
+                e.CEP.Replace("-", "").Trim() == safeCep &&
+                e.Numero.Trim() == safeNum);
+
+            if (resultado.DeletedCount > 0)
             {
-                var json = System.IO.File.ReadAllText(caminho);
-                var enderecos = JsonSerializer.Deserialize<List<EnderecoUsuario>>(json) ?? new List<EnderecoUsuario>();
-
-                // BUG CORRIGIDO: Removendo traços e espaços para garantir que a exclusão funcione
-                var safeCep = cep?.Replace("-", "").Trim() ?? "";
-                var safeNum = numero?.Trim() ?? "";
-
-                var enderecoParaRemover = enderecos.FirstOrDefault(e =>
-                    e.UserEmail == email &&
-                    e.CEP.Replace("-", "").Trim() == safeCep &&
-                    e.Numero.Trim() == safeNum);
-
-                if (enderecoParaRemover != null)
-                {
-                    enderecos.Remove(enderecoParaRemover);
-                    System.IO.File.WriteAllText(caminho, JsonSerializer.Serialize(enderecos));
-                    return Json(new { success = true });
-                }
+                return Json(new { success = true });
             }
+
             return Json(new { success = false });
         }
 
@@ -167,6 +164,10 @@ namespace ScarFood.Controllers
 
         public IActionResult Finalizar()
         {
+            // PROTEÇÃO: Garantir que o usuário está logado antes de ver a tela de sucesso
+            var email = HttpContext.Session.GetString("UserEmail");
+            if (string.IsNullOrEmpty(email)) return RedirectToAction("Login", "Autenticacao");
+
             HttpContext.Session.Remove("Carrinho");
             return View("PedidoSucesso");
         }
@@ -174,38 +175,40 @@ namespace ScarFood.Controllers
         [HttpGet]
         public IActionResult Checkout()
         {
+            // PROTEÇÃO: Garantir que não dê para acessar o checkout sem logar
+            var email = HttpContext.Session.GetString("UserEmail");
+            if (string.IsNullOrEmpty(email)) return RedirectToAction("Login", "Autenticacao");
+
             return View();
         }
 
         [HttpPost]
         [IgnoreAntiforgeryToken]
-        public IActionResult RepetirPedido(int pedidoId)
+        public IActionResult RepetirPedido(string pedidoId) 
         {
-            var caminhoPedidos = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "pedidos.json");
-            if (System.IO.File.Exists(caminhoPedidos))
-            {
-                var json = System.IO.File.ReadAllText(caminhoPedidos);
-                var pedidos = System.Text.Json.JsonSerializer.Deserialize<List<Pedido>>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<Pedido>();
-                var pedidoAntigo = pedidos.FirstOrDefault(p => p.Id == pedidoId);
+            // 1. PROTEÇÃO: O usuário DEVE estar logado
+            var email = HttpContext.Session.GetString("UserEmail");
+            if (string.IsNullOrEmpty(email)) return RedirectToAction("Login", "Autenticacao");
 
-                if (pedidoAntigo != null && pedidoAntigo.Itens != null)
+            // 2. PROTEÇÃO (IDOR): Busca o pedido garantindo que ele pertence ao e-mail logado
+            var pedidoAntigo = _dbService.Pedidos.Find(p => p.Id == pedidoId && p.UserEmail == email).FirstOrDefault();
+
+            if (pedidoAntigo != null && pedidoAntigo.Itens != null)
+            {
+                var carrinho = ObterCarrinhoDaSessao();
+                foreach (var item in pedidoAntigo.Itens)
                 {
-                    var carrinho = ObterCarrinhoDaSessao();
-                    // Joga todos os itens antigos pro carrinho novo
-                    foreach (var item in pedidoAntigo.Itens)
+                    carrinho.Add(new ItemCarrinho
                     {
-                        carrinho.Add(new ItemCarrinho
-                        {
-                            Id = item.Id,
-                            Nome = item.Nome,
-                            PrecoUnitario = item.PrecoUnitario,
-                            Quantidade = item.Quantidade,
-                            Observacao = item.Observacao
-                        });
-                    }
-                    SalvarCarrinhoNaSessao(carrinho);
-                    return RedirectToAction("Index", "Carrinho"); // Manda o cliente pro carrinho!
+                        Id = item.Id,
+                        Nome = item.Nome,
+                        PrecoUnitario = item.PrecoUnitario,
+                        Quantidade = item.Quantidade,
+                        Observacao = item.Observacao
+                    });
                 }
+                SalvarCarrinhoNaSessao(carrinho);
+                return RedirectToAction("Index", "Carrinho");
             }
             return RedirectToAction("Pedidos", "Home");
         }
@@ -213,53 +216,30 @@ namespace ScarFood.Controllers
         [HttpPost]
         public IActionResult FinalizarPedido(string tipoEntrega, string pagamento, string total)
         {
-            var email = HttpContext.Session.GetString("UserEmail") ?? "convidado@scarfood.com";
+            // PROTEÇÃO: Agora barra a requisição se não tiver logado (removido o "convidado")
+            var email = HttpContext.Session.GetString("UserEmail");
+            if (string.IsNullOrEmpty(email)) return RedirectToAction("Login", "Autenticacao");
+
             var carrinho = ObterCarrinhoDaSessao();
 
             if (carrinho.Count > 0)
             {
-                var caminhoPedidos = Path.Combine(Directory.GetCurrentDirectory(), "pedidos.json");
-                List<PedidoModel> pedidos = new();
-
-                if (System.IO.File.Exists(caminhoPedidos))
+                var novoPedido = new Pedido
                 {
-                    var jsonExistente = System.IO.File.ReadAllText(caminhoPedidos);
-                    if (!string.IsNullOrWhiteSpace(jsonExistente))
-                    {
-                        pedidos = JsonSerializer.Deserialize<List<PedidoModel>>(jsonExistente) ?? new();
-                    }
-                }
-
-                var novoPedido = new PedidoModel
-                {
-                    Id = pedidos.Count + 1,
                     UserEmail = email,
                     Data = DateTime.Now.ToString("dd/MM/yyyy HH:mm"),
                     TipoEntrega = tipoEntrega ?? "Delivery",
                     FormaPagamento = pagamento ?? "Não informado",
                     Total = total ?? "0,00",
+                    Status = "AGUARDANDO",
                     Itens = carrinho
                 };
 
-                pedidos.Add(novoPedido);
-                System.IO.File.WriteAllText(caminhoPedidos, JsonSerializer.Serialize(pedidos));
-
+                _dbService.Pedidos.InsertOne(novoPedido);
                 HttpContext.Session.Remove("Carrinho");
             }
 
             return RedirectToAction("Pedidos", "Home");
-        }
-
-        // Classes com inicialização vazia para remover os avisos CS8618
-        public class PedidoModel
-        {
-            public int Id { get; set; }
-            public string UserEmail { get; set; } = string.Empty;
-            public string Data { get; set; } = string.Empty;
-            public string TipoEntrega { get; set; } = string.Empty;
-            public string FormaPagamento { get; set; } = string.Empty;
-            public string Total { get; set; } = string.Empty;
-            public List<ItemCarrinho> Itens { get; set; } = new();
         }
 
         [HttpPost]
@@ -269,23 +249,14 @@ namespace ScarFood.Controllers
             var email = HttpContext.Session.GetString("UserEmail");
             if (string.IsNullOrEmpty(email)) return Json(new { success = false });
 
-            var caminho = Path.Combine(Directory.GetCurrentDirectory(), "enderecos_usuarios.json");
-            List<EnderecoUsuario> enderecos = new();
-
-            if (System.IO.File.Exists(caminho))
-            {
-                var json = System.IO.File.ReadAllText(caminho);
-                enderecos = JsonSerializer.Deserialize<List<EnderecoUsuario>>(json) ?? new();
-            }
-
-            bool jaExiste = enderecos.Any(e =>
+            var jaExiste = _dbService.Enderecos.Find(e =>
                 e.UserEmail == email &&
                 e.CEP == cep &&
-                e.Numero == numero);
+                e.Numero == numero).Any();
 
             if (!jaExiste)
             {
-                enderecos.Add(new EnderecoUsuario
+                var novoEndereco = new EnderecoUsuario
                 {
                     UserEmail = email,
                     CEP = cep,
@@ -293,9 +264,9 @@ namespace ScarFood.Controllers
                     Numero = numero,
                     Bairro = bairro,
                     Complemento = complemento ?? string.Empty
-                });
+                };
 
-                System.IO.File.WriteAllText(caminho, JsonSerializer.Serialize(enderecos));
+                _dbService.Enderecos.InsertOne(novoEndereco);
                 return Json(new { success = true, message = "Endereço novo salvo!" });
             }
 
@@ -304,12 +275,7 @@ namespace ScarFood.Controllers
 
         private List<EnderecoUsuario> ObterEnderecosSalvos(string email)
         {
-            var caminho = Path.Combine(Directory.GetCurrentDirectory(), "enderecos_usuarios.json");
-            if (!System.IO.File.Exists(caminho)) return new();
-
-            var json = System.IO.File.ReadAllText(caminho);
-            var todos = JsonSerializer.Deserialize<List<EnderecoUsuario>>(json) ?? new();
-            return todos.Where(e => e.UserEmail == email).ToList();
+            return _dbService.Enderecos.Find(e => e.UserEmail == email).ToList();
         }
 
         [HttpGet]
@@ -323,15 +289,13 @@ namespace ScarFood.Controllers
                 total = carrinho.Sum(i => i.PrecoTotal)
             });
         }
-
     }
-
 
     namespace ScarFood.Models
     {
         public class ItemCarrinho
         {
-            public int ProdutoId { get; set; }
+            public string Id { get; set; } 
             public string Nome { get; set; } = string.Empty;
             public decimal PrecoUnitario { get; set; }
             public int Quantidade { get; set; }
@@ -341,6 +305,10 @@ namespace ScarFood.Controllers
 
         public class EnderecoUsuario
         {
+            [BsonId]
+            [BsonRepresentation(BsonType.ObjectId)]
+            public string? Id { get; set; }
+
             public string UserEmail { get; set; } = string.Empty;
             public string CEP { get; set; } = string.Empty;
             public string Logradouro { get; set; } = string.Empty;
@@ -348,8 +316,5 @@ namespace ScarFood.Controllers
             public string Bairro { get; set; } = string.Empty;
             public string Complemento { get; set; } = string.Empty;
         }
-
-
     }
-
 }

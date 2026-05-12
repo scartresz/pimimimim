@@ -1,56 +1,41 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using ScarFood.Models;
+using ScarFood.Services; // Referência ao serviço NoSQL
+using MongoDB.Driver;    // Driver do MongoDB
 using System.Collections.Generic;
 using System.Linq;
-using System.IO;
-using System.Text.Json;
+using System;
 
 namespace ScarFood.Controllers
 {
     public class AutenticacaoController : Controller
     {
-        // Caminho do arquivo onde os dados serão salvos permanentemente
-        private readonly string _caminhoArquivo = Path.Combine(Directory.GetCurrentDirectory(), "usuarios.json");
+        private readonly DatabaseService _dbService;
 
-        // Função para carregar os usuários do arquivo
-        private List<Usuario> CarregarUsuarios()
+        public AutenticacaoController(DatabaseService dbService)
         {
-            // CORREÇÃO: Usando System.IO.File para evitar conflito com o método File() do Controller
-            if (!System.IO.File.Exists(_caminhoArquivo)) return new List<Usuario>();
-            var json = System.IO.File.ReadAllText(_caminhoArquivo);
-            return JsonSerializer.Deserialize<List<Usuario>>(json) ?? new List<Usuario>();
-        }
-
-        // Função para salvar a lista no arquivo
-        private void SalvarUsuarios(List<Usuario> usuarios)
-        {
-            var json = JsonSerializer.Serialize(usuarios, new JsonSerializerOptions { WriteIndented = true });
-            // CORREÇÃO: Usando System.IO.File aqui também
-            System.IO.File.WriteAllText(_caminhoArquivo, json);
+            _dbService = dbService;
         }
 
         [HttpGet] public IActionResult Login() => View();
         [HttpGet] public IActionResult Registro() => View();
 
         [HttpPost]
+        [ValidateAntiForgeryToken] // ADICIONADO: Proteção contra ataques CSRF
         public IActionResult Registro(Usuario novoUsuario)
         {
             if (ModelState.IsValid)
             {
-                var usuarios = CarregarUsuarios();
-
-                if (usuarios.Any(u => u.Email.ToLower() == novoUsuario.Email.ToLower()))
+                // Verifica se o e-mail já existe na coleção do MongoDB
+                if (_dbService.Usuarios.Find(u => u.Email.ToLower() == novoUsuario.Email.ToLower()).Any())
                 {
                     ModelState.AddModelError("Email", "Este e-mail já está cadastrado.");
                     return View(novoUsuario);
                 }
 
-                // Gera um ID simples
-                novoUsuario.Id = usuarios.Count > 0 ? usuarios.Max(u => u.Id) + 1 : 1;
-
-                usuarios.Add(novoUsuario);
-                SalvarUsuarios(usuarios); // Grava no arquivo físico
+                // O NoSQL gera o ID automaticamente ao inserir
+                _dbService.Usuarios.InsertOne(novoUsuario);
 
                 return RedirectToAction("Login");
             }
@@ -58,8 +43,10 @@ namespace ScarFood.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken] // ADICIONADO: Proteção contra ataques CSRF
         public IActionResult Login(Usuario usuario)
         {
+            // Lógica do Admin
             if (usuario.Email == "admin@scarfood.com" && usuario.Senha == "admin123")
             {
                 HttpContext.Session.SetString("UserEmail", "admin@scarfood.com");
@@ -67,8 +54,8 @@ namespace ScarFood.Controllers
                 return RedirectToAction("Index", "Home");
             }
 
-            var usuarios = CarregarUsuarios();
-            var userValido = usuarios.FirstOrDefault(u => u.Email.ToLower() == usuario.Email.ToLower() && u.Senha == usuario.Senha);
+            // Busca o usuário válido na coleção NoSQL
+            var userValido = _dbService.Usuarios.Find(u => u.Email.ToLower() == usuario.Email.ToLower() && u.Senha == usuario.Senha).FirstOrDefault();
 
             if (userValido != null)
             {
@@ -81,15 +68,12 @@ namespace ScarFood.Controllers
             return View(usuario);
         }
 
-
-
         [HttpGet]
         public IActionResult Perfil()
         {
             var email = HttpContext.Session.GetString("UserEmail");
             if (string.IsNullOrEmpty(email)) return RedirectToAction("Login");
 
-            
             if (email == "admin@scarfood.com")
             {
                 return View(new Usuario
@@ -101,22 +85,22 @@ namespace ScarFood.Controllers
                 });
             }
 
-           
-            var usuarios = CarregarUsuarios();
-            var usuario = usuarios.FirstOrDefault(u => u.Email == email);
+            // Busca os dados do perfil diretamente no MongoDB
+            var usuario = _dbService.Usuarios.Find(u => u.Email == email).FirstOrDefault();
 
-            
             if (usuario == null) return RedirectToAction("Sair");
 
             return View(usuario);
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken] // ADICIONADO: Proteção contra ataques CSRF
         public IActionResult AtualizarPerfil(Usuario model)
         {
             var emailSessao = HttpContext.Session.GetString("UserEmail");
-            var usuarios = CarregarUsuarios();
-            var usuario = usuarios.FirstOrDefault(u => u.Email == emailSessao);
+           
+            // Localiza o usuário no banco NoSQL usando a SESSÃO (Excelente contra IDOR!)
+            var usuario = _dbService.Usuarios.Find(u => u.Email == emailSessao).FirstOrDefault();
 
             if (usuario != null)
             {
@@ -138,7 +122,9 @@ namespace ScarFood.Controllers
                 usuario.Numero = model.Numero;
                 usuario.Complemento = model.Complemento;
 
-                SalvarUsuarios(usuarios); // Atualiza o arquivo físico
+                // Atualiza o documento no MongoDB
+                _dbService.Usuarios.ReplaceOne(u => u.Email == emailSessao, usuario);
+
                 HttpContext.Session.SetString("UserNome", usuario.Nome);
                 ViewBag.Mensagem = "Perfil atualizado com sucesso!";
                 return View("Perfil", usuario);
@@ -148,7 +134,7 @@ namespace ScarFood.Controllers
 
         public IActionResult Sair()
         {
-            HttpContext.Session.Clear();
+            HttpContext.Session.Clear(); // Perfeito! Esvazia a sessão inteira.
             return RedirectToAction("Index", "Home");
         }
     }

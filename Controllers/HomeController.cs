@@ -1,68 +1,44 @@
 using Microsoft.AspNetCore.Mvc;
 using ScarFood.Models;
+using ScarFood.Services; // ADICIONADO: Referência ao serviço do MongoDB
+using MongoDB.Driver;    // ADICIONADO: Driver do NoSQL
 using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using System.Collections.Generic;
 using System.Linq;
-using System.IO;
-using System.Text.Json;
 using System;
+using System.Threading.Tasks;
 
 namespace ScarFood.Controllers
 {
     public class HomeController : Controller
     {
-        private readonly string _caminhoPedidos = Path.Combine(Directory.GetCurrentDirectory(), "pedidos.json");
-        private readonly string _caminhoProdutos = Path.Combine(Directory.GetCurrentDirectory(), "produtos.json");
-        
-        // NOVO: O Home agora sabe onde fica o arquivo de Categorias!
-        private readonly string _caminhoCategorias = Path.Combine(Directory.GetCurrentDirectory(), "categorias.json"); 
+        // Substituímos os caminhos de arquivo físicos pela injeção do serviço de banco
+        private readonly DatabaseService _dbService;
 
+        public HomeController(DatabaseService dbService)
+        {
+            _dbService = dbService;
+        }
+
+        // Funções de carregamento agora buscam diretamente no MongoDB
         private List<Pedido> CarregarPedidos()
         {
-            if (!System.IO.File.Exists(_caminhoPedidos)) return new List<Pedido>();
-
-            var json = System.IO.File.ReadAllText(_caminhoPedidos);
-            if (string.IsNullOrWhiteSpace(json)) return new List<Pedido>();
-
-            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            try
-            {
-                return JsonSerializer.Deserialize<List<Pedido>>(json, options) ?? new List<Pedido>();
-            }
-            catch
-            {
-                return new List<Pedido>();
-            }
+            return _dbService.Pedidos.Find(_ => true).ToList();
         }
 
-        private void SalvarPedidos(List<Pedido> pedidos)
-        {
-            var options = new JsonSerializerOptions { WriteIndented = true };
-            System.IO.File.WriteAllText(_caminhoPedidos, JsonSerializer.Serialize(pedidos, options));
-        }
-
-        // NOVO: Função para o Cardápio ler a ordem exata do Admin
         private List<CategoriaItem> CarregarCategorias()
         {
-            if (!System.IO.File.Exists(_caminhoCategorias)) return new List<CategoriaItem>();
-            var json = System.IO.File.ReadAllText(_caminhoCategorias);
-            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            try {
-                return JsonSerializer.Deserialize<List<CategoriaItem>>(json, options) ?? new List<CategoriaItem>();
-            } catch {
-                return new List<CategoriaItem>();
-            }
+            return _dbService.Categorias.Find(_ => true).ToList();
         }
 
         public IActionResult Index()
         {
-            // MANDA A ORDEM DEFINIDA PELO ADMIN PARA A TELA DO CLIENTE!
+            // MANTIDO: Manda a ordem definida pelo admin para a tela do cliente
             ViewBag.Categorias = CarregarCategorias().OrderBy(c => c.Ordem).ToList();
 
-            if (!System.IO.File.Exists(_caminhoProdutos)) return View(new List<Produto>());
-            var json = System.IO.File.ReadAllText(_caminhoProdutos);
-            var produtos = JsonSerializer.Deserialize<List<Produto>>(json) ?? new List<Produto>();
+            // Busca os produtos na coleção do NoSQL
+            var produtos = _dbService.Produtos.Find(_ => true).ToList();
             return View(produtos);
         }
 
@@ -71,19 +47,30 @@ namespace ScarFood.Controllers
             var email = HttpContext.Session.GetString("UserEmail");
             if (string.IsNullOrEmpty(email)) return RedirectToAction("Login", "Autenticacao");
 
-            var todosPedidos = CarregarPedidos();
-            var pedidosFiltrados = todosPedidos.Where(p => p.UserEmail == email).OrderByDescending(p => p.Data).ToList();
+            // MANTIDO: Filtra apenas os pedidos do usuário logado e ordena pela data
+            var pedidosFiltrados = _dbService.Pedidos
+                .Find(p => p.UserEmail == email)
+                .SortByDescending(p => p.Data)
+                .ToList();
 
             return View(pedidosFiltrados);
         }
 
         public IActionResult Error() => View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
 
+        // ==========================================
+        // PROTEÇÃO ADICIONADA: Validação de Posse do Pedido no Chat
+        // ==========================================
+
         [HttpGet]
-        public IActionResult ObterChat(int pedidoId)
+        public IActionResult ObterChat(string pedidoId) // Alterado para string devido ao NoSQL
         {
-            var pedidos = CarregarPedidos();
-            var pedido = pedidos.FirstOrDefault(p => p.Id == pedidoId);
+            // 1. Verifica se o usuário está logado
+            var email = HttpContext.Session.GetString("UserEmail");
+            if (string.IsNullOrEmpty(email)) return Json(new { success = false });
+
+            // 2. PROTEÇÃO: O pedido deve existir E pertencer ao e-mail do usuário logado
+            var pedido = _dbService.Pedidos.Find(p => p.Id == pedidoId && p.UserEmail == email).FirstOrDefault();
 
             if (pedido == null) return Json(new { success = false });
 
@@ -91,10 +78,14 @@ namespace ScarFood.Controllers
         }
 
         [HttpPost]
-        public IActionResult EnviarMensagemChat(int pedidoId, string texto)
+        public IActionResult EnviarMensagemChat(string pedidoId, string texto) // Alterado para string devido ao NoSQL
         {
-            var pedidos = CarregarPedidos();
-            var pedido = pedidos.FirstOrDefault(p => p.Id == pedidoId);
+            // 1. Verifica se o usuário está logado
+            var email = HttpContext.Session.GetString("UserEmail");
+            if (string.IsNullOrEmpty(email)) return Json(new { success = false });
+
+            // 2. PROTEÇÃO: O pedido deve existir E pertencer ao e-mail do usuário logado
+            var pedido = _dbService.Pedidos.Find(p => p.Id == pedidoId && p.UserEmail == email).FirstOrDefault();
 
             if (pedido != null && !string.IsNullOrWhiteSpace(texto))
             {
@@ -104,12 +95,14 @@ namespace ScarFood.Controllers
                 {
                     Remetente = "Cliente",
                     Texto = texto,
-                    DataHora = System.DateTime.Now.ToString("HH:mm"),
+                    DataHora = DateTime.Now.ToString("HH:mm"),
                     StatusVisto = "Enviado"
                 };
 
                 pedido.Mensagens.Add(novaMsg);
-                SalvarPedidos(pedidos);
+               
+                // Salva a atualização no documento específico do pedido
+                _dbService.Pedidos.ReplaceOne(p => p.Id == pedidoId, pedido);
 
                 return Json(new { success = true, mensagem = novaMsg });
             }

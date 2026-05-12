@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ScarFood")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c419b0bb55dd9275573ead6d5e7725750a909430")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+31cff1c582dab2c9bcb3abe36b429ee1509ace65")]
 [assembly: System.Reflection.AssemblyProductAttribute("ScarFood")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ScarFood")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

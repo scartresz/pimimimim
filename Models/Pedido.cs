@@ -1,30 +1,36 @@
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Attributes;
+using MongoDB.Bson.Serialization.IdGenerators; 
 using System.Collections.Generic;
 
 namespace ScarFood.Models
 {
-    // A classe do pedido que você já tinha
+    [BsonIgnoreExtraElements]
     public class Pedido
     {
-        public int Id { get; set; }
+        // Esta configuração aceita o ID "1" antigo e gera novos IDs automaticamente!
+        [BsonId(IdGenerator = typeof(StringObjectIdGenerator))] 
+        [BsonRepresentation(BsonType.String)]
+        public string? Id { get; set; }
+        
         public string UserEmail { get; set; } = string.Empty;
         public string Data { get; set; } = string.Empty;
         public string TipoEntrega { get; set; } = string.Empty;
         public string FormaPagamento { get; set; } = string.Empty;
         public string Total { get; set; } = string.Empty;
-        public string Status { get; set; } = "AGUARDANDO"; 
+        public string Status { get; set; } = string.Empty;
         
-        public List<ItemCarrinho> Itens { get; set; } = new(); 
-
-        // NOVA LINHA: O histórico de conversas deste pedido
-        public List<MensagemChat> Mensagens { get; set; } = new(); 
+        public List<ItemCarrinho> Itens { get; set; } = new();
+        public List<MensagemChat> Mensagens { get; set; } = new();
     }
 
-    // NOVA CLASSE: Para guardar a mensagem, quem enviou, horário e status
+    // Apenas a classe MensagemChat fica aqui, pois o ItemCarrinho já tem a própria casa dele
+    [BsonIgnoreExtraElements]
     public class MensagemChat
     {
-        public string Remetente { get; set; } = "Cliente"; // "Cliente" ou "Loja"
+        public string Remetente { get; set; } = string.Empty;
         public string Texto { get; set; } = string.Empty;
-        public string DataHora { get; set; } = string.Empty; // Ex: 18:45
-        public string StatusVisto { get; set; } = "Enviado"; // "Enviado", "Entregue", "Visto"
+        public string DataHora { get; set; } = string.Empty;
+        public string StatusVisto { get; set; } = string.Empty;
     }
 }

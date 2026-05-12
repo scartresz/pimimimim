@@ -226,7 +226,7 @@
                                 <hr class="opacity-25 my-3">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div class="small">
-                                        <span class="fw-bold">Itens:</span> 
+                                        <span class="fw-bold">Itens:</span>
                                         @string.Join(", ", ped.Itens.Select(i => $"{i.Quantidade}x {i.Nome}"))
                                     </div>
                                     <button class="btn btn-outline-danger btn-sm fw-bold rounded-pill" onclick="abrirChatAdmin('@ped.Id')">
@@ -411,7 +411,7 @@
         }
 
         // ==========================================
-        // MEMÓRIA DAS ABAS 
+        // MEMÓRIA DAS ABAS
         // ==========================================
         document.addEventListener("DOMContentLoaded", function() {
             let activeTab = localStorage.getItem('activeAdminTab');
@@ -450,9 +450,10 @@
         }
 
         // ==========================================
-        // LÓGICA DO CHAT (VERSÃO ADMIN)
+        // LÓGICA DO CHAT (VERSÃO ADMIN) COM AUTO-UPDATE
         // ==========================================
-        let chatAtualId = 0;
+        let chatAtualId = ""; // NoSQL ID é string
+        let chatIntervalAdmin = null;
 
         function abrirChatAdmin(id) {
             chatAtualId = id;
@@ -461,28 +462,45 @@
             container.innerHTML = '<div class="text-center small text-muted my-3">Carregando...</div>';
             
             new bootstrap.Modal(document.getElementById('chatModalAdmin')).show();
+            
+            carregarMensagensAdmin(); 
+            
+            clearInterval(chatIntervalAdmin);
+            chatIntervalAdmin = setInterval(carregarMensagensAdmin, 3000);
+        }
 
-            $.get("/Admin/ObterChatAdmin?pedidoId=" + id, function(res) {
+        function carregarMensagensAdmin() {
+            $.get("/Admin/ObterChatAdmin?pedidoId=" + chatAtualId, function(res) {
                 if (res.success) {
-                    container.innerHTML = '<div class="text-center small text-muted my-3">Hoje</div>';
-                    if (res.mensagens && res.mensagens.length > 0) {
-                        res.mensagens.forEach(m => renderizarMensagemAdmin(m));
+                    const container = document.getElementById('chatContainerAdmin');
+                    
+                    let qtdAtualNaTela = container.querySelectorAll('.d-flex.flex-column').length;
+                    let qtdNoBanco = res.mensagens ? res.mensagens.length : 0;
+
+                    if (qtdNoBanco !== qtdAtualNaTela) {
+                        container.innerHTML = '<div class="text-center small text-muted my-3">Hoje</div>';
+                        if (res.mensagens && res.mensagens.length > 0) {
+                            res.mensagens.forEach(m => renderizarMensagemAdmin(m));
+                        }
+                        container.scrollTop = container.scrollHeight; 
                     }
-                    container.scrollTop = container.scrollHeight;
                 }
             });
         }
 
+        document.getElementById('chatModalAdmin').addEventListener('hidden.bs.modal', function () {
+            clearInterval(chatIntervalAdmin);
+        });
+
+        // Função recuperada e mantida intacta
         function renderizarMensagemAdmin(m) {
             const container = document.getElementById('chatContainerAdmin');
-            
             let iconStatus = '<i class="fas fa-check" style="color: #bbb;"></i>';
             if (m.statusVisto === 'Entregue') iconStatus = '<i class="fas fa-check-double" style="color: #bbb;"></i>';
             if (m.statusVisto === 'Visto') iconStatus = '<i class="fas fa-check-double text-info"></i>';
 
             let isLoja = m.remetente === "Loja";
             let html = "";
-
             if (isLoja) {
                 html = `
                 <div class="d-flex flex-column align-items-end mb-3 text-end">
@@ -533,10 +551,8 @@
         // MOTOR DO DASHBOARD FINANCEIRO E RELATÓRIOS
         // ==========================================
         
-        // Pega todos os pedidos direto do C# e transforma em um objeto JS
         var bancoPedidos = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.Pedidos ?? new List<ScarFood.Models.Pedido>()));
 
-        // Roda o relatório assim que a página carrega
         document.addEventListener("DOMContentLoaded", function() {
             let hoje = new Date();
             document.getElementById('filtroMes').value = hoje.getMonth() + 1;
@@ -549,23 +565,16 @@
             let mes = parseInt(document.getElementById('filtroMes').value);
             let ano = parseInt(document.getElementById('filtroAno').value);
 
-            // Esconde os selects de mês e ano se não precisar deles
             document.getElementById('filtroMes').style.display = (tipo === 'mensal') ? 'block' : 'none';
             document.getElementById('filtroAno').style.display = (tipo === 'mensal' || tipo === 'anual') ? 'block' : 'none';
 
-            // ========================================================
-            // 0. FUNÇÕES TRADUTORAS (Resolve o conflito C# vs Navegador)
-            // ========================================================
             function lerDataBR(dataStr) {
                 if (!dataStr) return new Date(0);
-                // Se já for padrão ISO (ex: 2026-05-11), lê direto
-                if (dataStr.includes('T') || dataStr.includes('-')) return new Date(dataStr); 
+                if (dataStr.includes('T') || dataStr.includes('-')) return new Date(dataStr);
                 
-                // Transforma "11/05/2026 14:42" em Data real do JS
-                let partes = dataStr.split(' '); 
+                let partes = dataStr.split(' ');
                 let pedacosData = partes[0].split('/');
                 if (pedacosData.length === 3) {
-                    // new Date(ano, mes (0 a 11), dia)
                     return new Date(parseInt(pedacosData[2]), parseInt(pedacosData[1]) - 1, parseInt(pedacosData[0]));
                 }
                 return new Date(dataStr);
@@ -574,16 +583,12 @@
             function lerDinheiroBR(valor) {
                 if (typeof valor === 'number') return valor;
                 if (!valor) return 0;
-                // Força "R$ 89,35" ou "89,35" a virar 89.35 puro para matemática
                 return parseFloat(valor.toString().replace('R$', '').replace(/\./g, '').replace(',', '.').trim()) || 0;
             }
 
-            // ========================================================
-            // 1. Filtragem das Datas (Agora em Português)
-            // ========================================================
             let pedidosFiltrados = bancoPedidos.filter(p => {
                 let status = (p.status || p.Status || "").toUpperCase();
-                if (status === 'CANCELADO') return false; 
+                if (status === 'CANCELADO') return false;
 
                 let dataString = p.data || p.Data;
                 if (!dataString) return false;
@@ -603,12 +608,9 @@
                 } else if (tipo === 'anual') {
                     return dataPed.getFullYear() === ano;
                 }
-                return true; // Filtro 'tudo'
+                return true; 
             });
 
-            // ========================================================
-            // 2. Cálculos e Agrupamentos (Matemática Pura)
-            // ========================================================
             let faturamento = 0;
             let itensVendidos = 0;
             let mapaProdutos = {};
@@ -629,7 +631,6 @@
                     let nome = i.nome || i.Nome || "Produto";
                     let precoTot = lerDinheiroBR(i.precoTotal || i.PrecoTotal);
                     
-                    // Se o preço total do item não vier salvo, multiplica na hora
                     if(precoTot === 0) {
                         let precoUnit = lerDinheiroBR(i.precoUnitario || i.PrecoUnitario);
                         precoTot = qty * precoUnit;
@@ -643,7 +644,6 @@
                 });
             });
 
-            // Atualiza os Cards Superiores
             let qtdPedidos = pedidosFiltrados.length;
             let ticketMedio = qtdPedidos > 0 ? (faturamento / qtdPedidos) : 0;
 
@@ -652,14 +652,11 @@
             document.getElementById('dashTicketMedio').innerText = `R$ ${ticketMedio.toFixed(2).replace('.',',')}`;
             document.getElementById('dashItensVendidos').innerText = itensVendidos;
 
-            // ========================================================
-            // 3. Renderiza Top Produtos e Clientes
-            // ========================================================
             let arrProdutos = Object.keys(mapaProdutos).map(k => ({ nome: k, qty: mapaProdutos[k].qty, total: mapaProdutos[k].total }));
-            arrProdutos.sort((a,b) => b.qty - a.qty); 
+            arrProdutos.sort((a,b) => b.qty - a.qty);
             
             let htmlProdutos = '';
-            arrProdutos.slice(0, 5).forEach(p => { 
+            arrProdutos.slice(0, 5).forEach(p => {
                 htmlProdutos += `
                     <tr>
                         <td class="fw-bold">${p.nome}</td>
@@ -671,11 +668,11 @@
             document.getElementById('tabelaTopProdutos').innerHTML = htmlProdutos;
 
             let arrClientes = Object.keys(mapaClientes).map(k => ({ email: k, pedidos: mapaClientes[k].pedidos, gasto: mapaClientes[k].gasto }));
-            arrClientes.sort((a,b) => b.gasto - a.gasto); 
+            arrClientes.sort((a,b) => b.gasto - a.gasto);
             
             let htmlClientes = '';
-            arrClientes.slice(0, 5).forEach(c => { 
-                let nomeCli = c.email.split('@@')[0]; 
+            arrClientes.slice(0, 5).forEach(c => {
+                let nomeCli = c.email.split('@@')[0];
                 htmlClientes += `
                     <tr>
                         <td class="fw-bold text-truncate" style="max-width: 150px;" title="${c.email}">${nomeCli}</td>

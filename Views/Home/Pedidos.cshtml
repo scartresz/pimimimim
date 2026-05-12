@@ -30,7 +30,8 @@
             else if (p.Status == "SAIU PARA ENTREGA") { badgeColor = "bg-danger"; borderColor = "#dc3545"; }
             else if (p.Status == "CONCLUIDO") { badgeColor = "bg-primary"; borderColor = "#0d6efd"; }
 
-            <div class="card border-0 shadow-sm mb-4" style="border-radius: 12px; border-left: 5px solid @borderColor !important;">
+            <div class="card border-0 shadow-sm mb-4"
+                 style="border-radius: 12px; border-left: 5px solid @borderColor !important;">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
                         <div>
@@ -42,7 +43,8 @@
                         <div class="d-flex gap-2">
                             @if (p.Status != "CONCLUIDO")
                             {
-                                <button class="btn btn-outline-danger btn-sm fw-bold px-3 rounded-pill" onclick="abrirChat('@p.Id', '@numeroDoPedidoDoCliente')">
+                                <button class="btn btn-outline-danger btn-sm fw-bold px-3 rounded-pill"
+                                        onclick="abrirChat('@p.Id', '@numeroDoPedidoDoCliente')">
                                     <i class="fas fa-comment-dots"></i> Chat com a Loja
                                 </button>
                             }
@@ -67,105 +69,130 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0" style="border-radius: 15px;">
             <div class="modal-header text-white" style="background-color: #EA1D2C;">
-                <h6 class="modal-title fw-bold"><i class="fas fa-store me-2"></i>Atendimento ScarFood - Pedido #<span id="labelPedidoId"></span></h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body bg-light" id="chatContainer" style="height: 350px; overflow-y: auto;">
-            </div>
-            <div class="modal-footer p-2 bg-white border-0">
-                <div class="input-group">
-                    <input type="text" id="chatInput" class="form-control border-0 bg-light" placeholder="Envie sua mensagem...">
-                    <button class="btn btn-danger" style="background-color: #EA1D2C;" onclick="enviarMensagem()"><i class="fas fa-paper-plane"></i></button>
+                <h6 class="modal-title fw-bold"><i class="fas fa-store me-2"></i>Atendimento ScarFood - Pedido #<span
+                    id="labelPedidoId"></span></h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light" id="chatContainer" style="height: 350px; overflow-y: auto;">
+                </div>
+                <div class="modal-footer p-2 bg-white border-0">
+                    <div class="input-group">
+                        <input type="text" id="chatInput" class="form-control border-0 bg-light"
+                               placeholder="Envie sua mensagem...">
+                        <button class="btn btn-danger" style="background-color: #EA1D2C;" onclick="enviarMensagemChat()"><i
+                            class="fas fa-paper-plane"></i></button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-</div>
 
-@section Scripts {
-    <script>
-        let chatAtualId = 0;
+        @section Scripts {
+            <script>
+                // ==========================================
+                // LÓGICA DO CHAT (VERSÃO CLIENTE) COM AUTO-UPDATE
+                // ==========================================
+                let chatClienteAtualId = ""; // Deixamos vazio como string por causa do NoSQL
+                let chatIntervalCliente = null;
 
-        function abrirChat(idBanco, idCliente) {
-            chatAtualId = idBanco; // Guarda o ID verdadeiro pro C# conseguir achar a conversa
-            document.getElementById('labelPedidoId').innerText = idCliente; // Mostra só o ID do cliente no topo do modal!
+                function abrirChat(id, numeroVisual) {
+                    chatClienteAtualId = id;
             
-            const container = document.getElementById('chatContainer');
-            container.innerHTML = '<div class="text-center small text-muted my-3">Carregando mensagens...</div>';
-            new bootstrap.Modal(document.getElementById('chatModal')).show();
+                    // Tenta atualizar o número do pedido no título do modal (se existir o span)
+                    let labelId = document.getElementById('labelPedidoId');
+                    // Usamos a variavel numeroVisual que vem do HTML lá em cima
+                    if (labelId) labelId.innerText = numeroVisual;
 
-            $.get("/Home/ObterChat?pedidoId=" + idBanco, function(res) {
-                if (res.success) {
-                    container.innerHTML = '<div class="text-center small text-muted my-3">Hoje</div>';
-                    let msgPadrao = `
-                        <div class="d-flex flex-column align-items-start mb-3">
-                            <div class="bg-white p-3 rounded-3 shadow-sm small" style="max-width: 80%;">
-                                Olá! Recebemos seu pedido. Ele já está sendo preparado pela nossa cozinha! 🍔
-                                <div class="text-end text-muted mt-1" style="font-size: 0.65rem;">Automático</div>
-                            </div>
-                        </div>`;
-                    container.innerHTML += msgPadrao;
-
-                    if (res.mensagens && res.mensagens.length > 0) {
-                        res.mensagens.forEach(m => renderizarMensagemNoHTML(m));
-                    }
-                    container.scrollTop = container.scrollHeight;
+                    const container = document.getElementById('chatContainer');
+                    container.innerHTML = '<div class="text-center small text-muted my-3">Carregando...</div>';
+            
+                    new bootstrap.Modal(document.getElementById('chatModal')).show();
+            
+                    carregarMensagensCliente(); // Carrega a primeira vez imediatamente
+            
+                    // Liga o cronômetro para atualizar a cada 3 segundos
+                    clearInterval(chatIntervalCliente);
+                    chatIntervalCliente = setInterval(carregarMensagensCliente, 3000);
                 }
-            });
-        }
 
-        function renderizarMensagemNoHTML(m) {
-            const container = document.getElementById('chatContainer');
-            
-            let iconStatus = '<i class="fas fa-check" style="color: #ffcccc;"></i>';
-            if (m.statusVisto === 'Entregue') iconStatus = '<i class="fas fa-check-double" style="color: #ffcccc;"></i>';
-            if (m.statusVisto === 'Visto') iconStatus = '<i class="fas fa-check-double text-info"></i>';
+                function carregarMensagensCliente() {
+                    $.get("/Home/ObterChat?pedidoId=" + chatClienteAtualId, function (res) {
+                        if (res.success) {
+                            const container = document.getElementById('chatContainer');
+                    
+                            // Conta mensagens para saber se chegou algo novo
+                            let qtdAtualNaTela = container.querySelectorAll('.d-flex.flex-column').length;
+                            let qtdNoBanco = res.mensagens ? res.mensagens.length : 0;
 
-            let isCliente = m.remetente === "Cliente";
-            let html = "";
+                            // Só atualiza o HTML se a quantidade for diferente
+                            if (qtdNoBanco !== qtdAtualNaTela) {
+                                container.innerHTML = '<div class="text-center small text-muted my-3">Hoje</div>';
+                                if (res.mensagens && res.mensagens.length > 0) {
+                                    res.mensagens.forEach(m => renderizarMensagemCliente(m));
+                                }
+                                container.scrollTop = container.scrollHeight; // Desce a barra de rolagem
+                            }
+                        }
+                    });
+                }
 
-            if (isCliente) {
-                html = `
-                <div class="d-flex flex-column align-items-end mb-3 text-end">
-                    <div class="text-white p-2 rounded-3 shadow-sm small text-start" style="max-width: 80%; background-color: #EA1D2C;">
-                        ${m.texto}
-                        <div class="d-flex justify-content-end align-items-center gap-1 mt-1" style="font-size: 0.65rem;">
-                            <span style="color: #ffd9db;">${m.dataHora}</span>
-                            ${iconStatus}
-                        </div>
-                    </div>
-                </div>`;
-            } else {
-                html = `
-                <div class="d-flex flex-column align-items-start mb-3">
-                    <div class="bg-white p-2 rounded-3 shadow-sm small" style="max-width: 80%; border-left: 3px solid #212529;">
-                        <strong class="d-block text-dark" style="font-size: 0.7rem;">ScarFood</strong>
-                        ${m.texto}
-                        <div class="text-end text-muted mt-1" style="font-size: 0.65rem;">
-                            <span>${m.dataHora}</span>
-                        </div>
-                    </div>
-                </div>`;
-            }
-            container.innerHTML += html;
-        }
-
-        function enviarMensagem() {
-            const input = document.getElementById('chatInput');
-            let textoDigitado = input.value.trim();
-            if (textoDigitado !== "") {
-                $.post("/Home/EnviarMensagemChat", { pedidoId: chatAtualId, texto: textoDigitado }, function(res) {
-                    if (res.success) {
-                        renderizarMensagemNoHTML(res.mensagem);
-                        input.value = "";
-                        document.getElementById('chatContainer').scrollTop = document.getElementById('chatContainer').scrollHeight;
-                    }
+                // Desliga o cronômetro quando o cliente fecha o chat para não travar o navegador
+                document.getElementById('chatModal').addEventListener('hidden.bs.modal', function () {
+                    clearInterval(chatIntervalCliente);
                 });
-            }
-        }
 
-        document.getElementById('chatInput').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') enviarMensagem();
-        });
-    </script>
-}
+                function renderizarMensagemCliente(m) {
+                    const container = document.getElementById('chatContainer');
+                    let isCliente = m.remetente === "Cliente";
+            
+                    let iconStatus = '<i class="fas fa-check" style="color: #bbb;"></i>';
+                    if (m.statusVisto === 'Visto') iconStatus = '<i class="fas fa-check-double text-white"></i>'; // Azul/Branco quando lido
+
+                    let html = "";
+                    if (isCliente) {
+                        html = `
+                            <div class="d-flex flex-column align-items-end mb-3 text-end">
+                                <div class="text-white p-2 rounded-3 shadow-sm small text-start" style="max-width: 80%; background-color: #EA1D2C;">
+                                    ${m.texto}
+                                    <div class="d-flex justify-content-end align-items-center gap-1 mt-1" style="font-size: 0.65rem;">
+                                        <span style="color: #ffcccc;">${m.dataHora}</span>
+                                        ${iconStatus}
+                                    </div>
+                                </div>
+                            </div>`;
+                    } else {
+                        html = `
+                            <div class="d-flex flex-column align-items-start mb-3">
+                                <div class="bg-white p-2 rounded-3 shadow-sm small" style="max-width: 80%; border-left: 3px solid #212529;">
+                                    <strong class="d-block text-dark" style="font-size: 0.7rem;">ScarFood</strong>
+                                    ${m.texto}
+                                    <div class="text-end text-muted mt-1" style="font-size: 0.65rem;">
+                                        <span>${m.dataHora}</span>
+                                    </div>
+                                </div>
+                            </div>`;
+                    }
+                    container.innerHTML += html;
+                }
+
+                function enviarMensagemChat() {
+                    const input = document.getElementById('chatInput');
+                    let texto = input.value.trim();
+            
+                    if (texto !== "") {
+                        $.post("/Home/EnviarMensagemChat", { pedidoId: chatClienteAtualId, texto: texto }, function (res) {
+                            if (res.success) {
+                                renderizarMensagemCliente(res.mensagem);
+                                input.value = "";
+                                const container = document.getElementById('chatContainer');
+                                container.scrollTop = container.scrollHeight;
+                            }
+                        });
+                    }
+                }
+
+                document.getElementById('chatInput').addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') enviarMensagemChat();
+                });
+            </script>
+        }
